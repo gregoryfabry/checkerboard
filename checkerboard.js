@@ -39,8 +39,8 @@ function DiffableStateFactory(root, prop, data) {
   State.$$.prop = prop;
   State.$$.data = data;
 
-  State.$$.diff = {};
-  State.$$.patch = {};
+  State.$$.diff = (State.$$.data instanceof Array ? [] : {});
+  State.$$.patch = (State.$$.data instanceof Array ? [] : {});
   State.$$.patched = false;
 
   State.$$.propegateDiff = function() {

@@ -23,10 +23,12 @@
 
     stm.onready = function() {
       stm.try(function(state) {
-        var element;
-        state('snippets', snippets.map(function(snippet, index) {
-          return {'text': snippet, 'x': 0, 'y': 0, 'z': index, 'scale': 1, 'angle': 0, 'identifier': index}
-        }));
+        if (!('snippets' in state))
+          state('snippets', snippets.map(function(snippet, index) {
+            return {'text': snippet, 'x': 0, 'y': 0, 'z': index, 'scale': 1, 'angle': 0, 'identifier': index}
+          }));
+        else
+          state.snippets();
       }).then(function(state) {
         var element;
         state.snippets.forEach(function(snippet) {
@@ -47,7 +49,10 @@
           stm.try(function(state) {
             var index = state.snippets().map(function(s) {return s.identifier;}).indexOf(parseInt(event.target.getAttribute('data-identifier')));
             var snippet = state.snippets[index];
-            console.log();
+            console.log(snippet.x(5));
+            //snippet.x(snippet.x() + event.dx);
+            //snippet.y(snippet.y() + event.dy);
+
           });
         }
       });

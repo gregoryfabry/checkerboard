@@ -55,6 +55,8 @@ var messageHandler = {
     message.attempts.some(function(attempt) {
       if (recursiveOneWayDiff(attempt.diff, State)) {
         lastAttempt = attempt.id;
+        object assign does not handler arrays properly!
+        ///// NEED TO HANDLE ARRAYS PROPERLY!
         Object.assign(State, attempt.patch);
         return false;
       }
