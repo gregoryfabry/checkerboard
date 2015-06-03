@@ -96,23 +96,32 @@ function propDiff(left, right) {
   return false;
 }
 
+function itr(left, right, indexOrProp) {
+  if (left[indexOrProp] instanceof Array) {
+    if (right[indexOrProp] instanceof Array)
+      assign(left[indexOrProp], right[indexOrProp]);
+    else
+      assign(left[indexOrProp], right[indexOrProp] = []);
+  }
+  else if (isPOJS(left[indexOrProp])) {
+    if (isPOJS(right[indexOrProp]))
+      assign(left[indexOrProp], right[indexOrProp]);
+    else
+      assign(left[indexOrProp], right[indexOrProp] = {});
+  }
+  else if (left[indexOrProp] !== null && typeof left[indexOrProp] !== 'undefined')
+    right[indexOrProp] = unStringReplace(left[indexOrProp]);
+}
+
 // recursively assigns left to right
 function assign(left, right) {
   if (left instanceof Array)
     left.forEach(function(item, index) {
-      if (item !== null && typeof item !== 'undefined')
-        right[index] = unStringReplace(item);
+      itr(left, right, index);
     });
   else {
     for (var prop in left) {
-      if (isPOJS(left[prop])) {
-        if (isPOJS(right[prop]))
-          assign(left[prop], right[prop]);
-        else
-          assign(left[prop], right[prop] = (left[prop] instanceof Array ? [] : {}));
-      }
-      else if (left[prop] !== null && typeof left[prop] !== 'undefined')
-        right[prop] = unStringReplace(left[prop]);
+      itr(left, right, prop);
     }
   }
   return right;

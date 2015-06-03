@@ -142,7 +142,6 @@ function Attempt(state, callback, deferred) {
   this.state = state;
   this.callback = callback;
   this.deferred = deferred;
-
   try {
     callback(state);
   } catch (err) {
@@ -164,15 +163,20 @@ function SharedTransactionalMemory(conn, optionalState) {
   }
 
   function updateState(newState) {
+    var flagReady = false;
+    if (typeof state === 'undefined') flagReady = true;
+
     state = newState;
 
-    if (attempts.length === 0) return;
-
-    var newAttempts = [];
-    newAttempts.push(new Attempt(new DiffableStateFactory(null, 'root', state), attempts[0].callback, attempts[0].promise));
-    for (var i = 1; i < attempts.length; i++)
-      newAttempts.push(new Attempt(newAttempts[i - 1].state.$$.branch(), attempts[i].callback, attempts[i].promise));
-    attempts = newAttempts;
+    if (attempts.length > 0) {
+      var newAttempts = [];
+      newAttempts.push(new Attempt(new DiffableStateFactory(null, 'root', state), attempts[0].callback, attempts[0].promise));
+      for (var i = 1; i < attempts.length; i++)
+        newAttempts.push(new Attempt(newAttempts[i - 1].state.$$.branch(), attempts[i].callback, attempts[i].promise));
+      attempts = newAttempts;
+    }
+    if (flagReady && 'onready' in stm && typeof stm.onready === 'function') stm.onready();
+    if ('onchange' in stm && typeof stm.onchange === 'function') stm.onchange(newState);
   }
 
   var stm = this;
@@ -191,11 +195,7 @@ function SharedTransactionalMemory(conn, optionalState) {
       });
     },
     'data-update-state': function(message) {
-      var flagReady = false;
-      if (typeof state === 'undefined') flagReady = true;
       updateState(message.state);
-      if (flagReady && 'onready' in stm && typeof stm.onready === 'function') stm.onready();
-      if ('onchange' in stm && typeof stm.onchange === 'function') stm.onchange();
     }
   };
 

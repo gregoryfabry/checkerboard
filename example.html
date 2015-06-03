@@ -15,6 +15,7 @@
     function updateElement(element, snippet) {
       element.innerText = snippet.text;
       element.style['z-index'] = snippet.z;
+      element.id = 'snippet-' + snippet.identifier;
 
       element.style.webkitTransform =
       element.style.transform =
@@ -38,22 +39,29 @@
           updateElement(element, snippet);
           document.body.appendChild(element);
         });
-      });
+      }).done();
 
-      stm.sync(1000);
+      stm.onchange = function(state) {
+        for (var i = 0; i < state.snippets.length; i++)
+          updateElement(document.getElementById('snippet-' + state.snippets[i].identifier), state.snippets[i]);
+      }
 
       interact('.interact')
       .draggable({
-        inertia: true,
         onmove: function (event) {
           stm.try(function(state) {
             var index = state.snippets().map(function(s) {return s.identifier;}).indexOf(parseInt(event.target.getAttribute('data-identifier')));
             var snippet = state.snippets[index];
             snippet.x(snippet.x() + event.dx);
             snippet.y(snippet.y() + event.dy);
+            updateElement(event.target, snippet());
           });
         }
       });
+
+      stm.sync(1000);
+
+
     }
   </script>
 </head>
