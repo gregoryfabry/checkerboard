@@ -49,10 +49,8 @@
           stm.try(function(state) {
             var index = state.snippets().map(function(s) {return s.identifier;}).indexOf(parseInt(event.target.getAttribute('data-identifier')));
             var snippet = state.snippets[index];
-            console.log(snippet.x(5));
-            //snippet.x(snippet.x() + event.dx);
-            //snippet.y(snippet.y() + event.dy);
-
+            snippet.x(snippet.x() + event.dx);
+            snippet.y(snippet.y() + event.dy);
           });
         }
       });

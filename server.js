@@ -5,21 +5,71 @@ Object.assign = require('object-assign');
 var WebSocketServer = new WebSocket.Server({'port': 904});
 var State = {};
 
+function unStringReplace(val) {
+  if (val === '$$null$$')
+    return null;
+
+  if (val === '$$undefined$$')
+    return undefined;
+
+  return val;
+}
+
+function stringReplace(val) {
+  if (val === null)
+    return '$$null$$';
+
+  if (typeof val === 'undefined')
+    return '$$undefined$$';
+
+  return val;
+}
+
 // returns true if object passes
 function recursiveOneWayDiff(left, right) {
-  for (var prop in left)
+  if (left instanceof Array)
   {
-    if (!(prop in right))
+    if (!(right instanceof Array))
       return false;
-    else if (!isPOJS(left[prop])) {
-      if (!propDiff(left[prop], right[prop])) {
+
+    for (var i = 0; i < left.length; i++)
+    {
+      if (typeof left[i] === 'undefined' && typeof right[i] === 'undefined')
+        continue;
+      else if (typeof left[i] !== 'undefined' && typeof right[i] === 'undefined')
         return false;
+      else if (!isPOJS(left[i])) {
+        if (!propDiff(left[i], right[i])) {
+          return false;
+        }
       }
+      else if (!isPOJS(right[i]))
+        return false;
+      else if (!recursiveOneWayDiff(left[i], right[i]))
+        return false;
     }
-    else if (!isPOJS(right[prop]))
+  }
+  else
+  {
+    if (typeof right !== 'object')
       return false;
-    else if (!recursiveOneWayDiff(left[prop], right[prop]))
-      return false;
+
+    for (var prop in left)
+    {
+      if (typeof left[prop] === 'undefined' && typeof right[prop] === 'undefined')
+        continue;
+      else if (!(prop in right))
+        return false;
+      else if (!isPOJS(left[prop])) {
+        if (!propDiff(left[prop], right[prop])) {
+          return false;
+        }
+      }
+      else if (!isPOJS(right[prop]))
+        return false;
+      else if (!recursiveOneWayDiff(left[prop], right[prop]))
+        return false;
+    }
   }
 
   return true;
@@ -46,6 +96,28 @@ function propDiff(left, right) {
   return false;
 }
 
+// recursively assigns left to right
+function assign(left, right) {
+  if (left instanceof Array)
+    left.forEach(function(item, index) {
+      if (item !== null && typeof item !== 'undefined')
+        right[index] = unStringReplace(item);
+    });
+  else {
+    for (var prop in left) {
+      if (isPOJS(left[prop])) {
+        if (isPOJS(right[prop]))
+          assign(left[prop], right[prop]);
+        else
+          assign(left[prop], right[prop] = (left[prop] instanceof Array ? [] : {}));
+      }
+      else if (left[prop] !== null && typeof left[prop] !== 'undefined')
+        right[prop] = unStringReplace(left[prop]);
+    }
+  }
+  return right;
+}
+
 var messageHandler = {
   'event-open': function(conn, message) {
     conn.sendObj('data-update-state', {'state': State});
@@ -55,9 +127,7 @@ var messageHandler = {
     message.attempts.some(function(attempt) {
       if (recursiveOneWayDiff(attempt.diff, State)) {
         lastAttempt = attempt.id;
-        object assign does not handler arrays properly!
-        ///// NEED TO HANDLE ARRAYS PROPERLY!
-        Object.assign(State, attempt.patch);
+        assign(attempt.patch, State);
         return false;
       }
       else

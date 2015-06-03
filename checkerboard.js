@@ -1,3 +1,32 @@
+function isPOJS(prop) {
+  return !(
+    prop instanceof Date ||
+    prop instanceof RegExp ||
+    prop instanceof String ||
+    prop instanceof Number) &&
+    typeof prop === 'object';
+}
+
+function unStringReplace(val) {
+  if (val === '$$null$$')
+    return null;
+
+  if (val === '$$undefined$$')
+    return undefined;
+
+  return val;
+}
+
+function stringReplace(val) {
+  if (val === null)
+    return '$$null$$';
+
+  if (typeof val === 'undefined')
+    return '$$undefined$$';
+
+  return val;
+}
+
 function DiffableStateFactory(root, prop, data) {
 
   function State(newValorProp, newVal) {
@@ -19,7 +48,7 @@ function DiffableStateFactory(root, prop, data) {
 
       State.$$.root[State.$$.prop] = DiffableStateFactory(State.$$.root, State.$$.prop, newValorProp);
       State.$$.root[State.$$.prop].$$.patched = true;
-      return (State.$$.root.$$.patch[State.$$.prop] = newValorProp);
+      return (State.$$.root.$$.patch[State.$$.prop] = stringReplace(newValorProp));
     }
 
     if (arguments.length === 2) {
@@ -61,20 +90,47 @@ function DiffableStateFactory(root, prop, data) {
     return DiffableStateFactory(null, 'root', State.$$.merge());
   };
 
-  State.$$.merge = function() {
-    var merge = (State.$$.data instanceof Array ? [] : {});
+  function itr(merge, indexOrProp) {
+    if (isPOJS(State.$$.data[indexOrProp]) || State.$$.data[indexOrProp] instanceof Array)
+      merge[indexOrProp] = State[indexOrProp].$$.merge();
+    else if (typeof State.$$.root.$$.patch[prop] !== 'undefined' && indexOrProp in State.$$.root.$$.patch[prop])
+      merge[indexOrProp] = State.$$.root.$$.patch[prop][indexOrProp];
+    else
+      merge[indexOrProp] = State.$$.data[indexOrProp];
 
-    for (var _prop in State.$$.data) {
-      if (typeof State.$$.root.$$.patch[prop] !== 'undefined' && _prop in State.$$.root.$$.patch[prop])
-        merge[_prop] = State.$$.root.$$.patch[prop][_prop];
-      else
-        merge[_prop] = State.$$.data[_prop];
+    if (merge[indexOrProp] === '$$null$$')
+      merge[indexOrProp] = null;
+    else if (merge[indexOrProp] === '$$undefined$$')
+      merge[indexOrProp] = undefined;
+  }
+
+  State.$$.merge = function() {
+    if (arguments.length === 0)
+      stringNullUndef = false;
+
+    var merge;
+
+    if (State.$$.data instanceof Array) {
+      merge = [];
+      State.$$.data.forEach(function(a, index) {
+        itr(merge, index);
+      });
+    }
+    else {
+      merge = {};
+      for (var _prop in State.$$.data) {
+        itr(merge, _prop);
+      }
     }
 
     return merge;
   };
 
-  if (typeof data === "object")
+  if (data instanceof Array)
+    data.forEach(function(item, index) {
+      State[index] = DiffableStateFactory(State, index, data[index]);
+    });
+  else if (typeof data === 'object')
     for (var _prop in data)
       if (data.hasOwnProperty(_prop))
         State[_prop] = DiffableStateFactory(State, _prop, data[_prop]);
@@ -98,8 +154,8 @@ Attempt.prototype.toJSON = function() {
   return {'id': this.id, 'diff': this.state.$$.diff, 'patch': this.state.$$.patch};
 };
 
-function SharedTransactionalMemory(conn) {
-  var state;
+function SharedTransactionalMemory(conn, optionalState) {
+  var state = optionalState;
   var attempts = [];
   var transactionId = 0;
 
@@ -122,14 +178,17 @@ function SharedTransactionalMemory(conn) {
   var stm = this;
   var actionHandler = {
     'data-attempts-returned': function(message) {
+
+      var resolvedAttempts = [];
+      if (typeof message.lastAttempt !== 'undefined')
+        resolvedAttempts = attempts
+          .splice(0, attempts.map(function(a) { return a.id; }).indexOf(message.lastAttempt) + 1);
+
       updateState(message.state);
 
-      if (typeof message.lastAttempt !== 'undefined')
-        attempts
-          .splice(0, attempts.map(function(a) { return a.id; }).indexOf(message.lastAttempt))
-          .forEach(function(resolvedAttempt) {
-            resolvedAttempt.deferred.resolve(state);
-          });
+      resolvedAttempts.forEach(function(resolvedAttempt) {
+        resolvedAttempt.deferred.resolve(state);
+      });
     },
     'data-update-state': function(message) {
       var flagReady = false;
