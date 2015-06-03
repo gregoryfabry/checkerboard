@@ -10,7 +10,7 @@
   </style>
   <script>
     var snippets = ["The diets of the majority of people in this suburb include meat..", "The people of this suburb rely on the two available butcher shops for their meat needs.", "The people of this suburb rely on the public pumps for their water needs.", "The majority of the people of this suburb are poor. They are crowded into one or two bedroom apartments.", "The epidemic hit the suburb during a hot summer.", "During the day, the temperature ranged between 92F and 108F.", "Jennifer Johnson ate two slices of vegetarian pizza with a glass of water in a restaurant on Spring Street.", "Tony Jordan was the owner of the bakery at Coventry Market.", "Tom Slye, Alice Slye, and James Slye are the three children of Williams Slye, the owner of the butcher shop on Spring Street.", "Alex Satterfield was a successful lawyer and won most of his assigned cases.", "Before going home, Jennifer Johnson filled her water bottle from the public water pump on Coventry Market. As she filled her bottle, she told a neighbor \"the water of this pump is still the best in this city\"..", "When not in school, Tom Slye, Alice Slye, and James Slye accompanied their father to work and played soccer on the side walk on Spring Street..", "Tony Jordan bought a hamburger from the butcher shop on Johnson Street.", "It was a hot day, so Alex Satterfield drank lots of water after the meal before he left his aunt's apartment.", "Jennifer Johnson died after two days in the hospital at Marston Court Road.", "Alex Satterfield had tea, biscuits and sausages that his aunt bought from the butcher shop on Johnson Stree.", "Tony Jordan went back home, fried the burger and the fries and ate his meal as he watched TV.", "Alex Satterfield passed by the Police Station on Cops Street to collect some information on his new case.", "Tony Jordan bought one pound of potatoes from the super market on Johnson Street.", "The next morning Tony Jordan was found dead in his bed.", "Two hours prior to his death, Alex Satterfield stopped off to visit his aunt Matilda Wright"];
-    var stm = new SharedTransactionalMemory(new WebSocket('ws://localhost:904/'));
+    var stm = new SharedTransactionalMemory(new WebSocket('ws://172.22.245.226:904/'));
 
     function updateElement(element, snippet) {
       element.innerText = snippet.text;
@@ -59,7 +59,7 @@
         }
       });
 
-      stm.sync(1000);
+      stm.sync(50);
 
 
     }
