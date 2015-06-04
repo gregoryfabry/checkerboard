@@ -166,6 +166,7 @@ function assign(left, right) {
 
 var messageHandler = {
   'event-open': function(conn, message) {
+    console.log('hi');
     conn.sendObj('data-update-state', {'state': State});
   },
   'data-attempt-state': function(conn, message) {
@@ -196,6 +197,8 @@ WebSocketServer.on('connection', function(conn) {
     conn.send(JSON.stringify({'channel': channel, 'message': message}));
   };
   conns.push(conn);
+
+  if ('event-open' in messageHandler) messageHandler['event-open'](conn);
 
   conn.on('message', function(json) {
     var envelope = JSON.parse(json);

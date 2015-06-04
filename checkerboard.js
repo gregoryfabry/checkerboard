@@ -170,9 +170,9 @@ function SharedTransactionalMemory(conn, optionalState) {
 
     if (attempts.length > 0) {
       var newAttempts = [];
-      newAttempts.push(new Attempt(new DiffableStateFactory(null, 'root', state), attempts[0].callback, attempts[0].promise));
+      newAttempts.push(new Attempt(new DiffableStateFactory(null, 'root', state), attempts[0].callback, attempts[0].deferred));
       for (var i = 1; i < attempts.length; i++)
-        newAttempts.push(new Attempt(newAttempts[i - 1].state.$$.branch(), attempts[i].callback, attempts[i].promise));
+        newAttempts.push(new Attempt(newAttempts[i - 1].state.$$.branch(), attempts[i].callback, attempts[i].deferred));
       attempts = newAttempts;
     }
     if (flagReady && 'onready' in stm && typeof stm.onready === 'function') stm.onready();
@@ -193,6 +193,8 @@ function SharedTransactionalMemory(conn, optionalState) {
       resolvedAttempts.forEach(function(resolvedAttempt) {
         resolvedAttempt.deferred.resolve(state);
       });
+
+      waitingForReturn = false;
     },
     'data-update-state': function(message) {
       updateState(message.state);
@@ -226,11 +228,14 @@ function SharedTransactionalMemory(conn, optionalState) {
   };
 
   var intervalHandle = null;
+  var waitingForReturn = false;
   var sync = this.sync = function(interval) {
     if (interval === null)
       return clearInterval(intervalHandle);
     if (arguments.length > 0)
       intervalHandle = setInterval(function() { sync(); }, interval);
+    if (waitingForReturn)
+      return;
 
     var tryableAttempts = [];
     attempts.forEach(function(attempt, index) {
@@ -250,7 +255,9 @@ function SharedTransactionalMemory(conn, optionalState) {
       tryableAttempts.push(attempt);
     });
 
-    if (tryableAttempts.length > 0)
+    if (tryableAttempts.length > 0) {
       sendObj('data-attempt-state', {'attempts': tryableAttempts});
+      waitingForReturn = true;
+    }
   };
 }

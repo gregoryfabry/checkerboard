@@ -10,7 +10,7 @@
   </style>
   <script>
     var snippets = ["The diets of the majority of people in this suburb include meat..", "The people of this suburb rely on the two available butcher shops for their meat needs.", "The people of this suburb rely on the public pumps for their water needs.", "The majority of the people of this suburb are poor. They are crowded into one or two bedroom apartments.", "The epidemic hit the suburb during a hot summer.", "During the day, the temperature ranged between 92F and 108F.", "Jennifer Johnson ate two slices of vegetarian pizza with a glass of water in a restaurant on Spring Street.", "Tony Jordan was the owner of the bakery at Coventry Market.", "Tom Slye, Alice Slye, and James Slye are the three children of Williams Slye, the owner of the butcher shop on Spring Street.", "Alex Satterfield was a successful lawyer and won most of his assigned cases.", "Before going home, Jennifer Johnson filled her water bottle from the public water pump on Coventry Market. As she filled her bottle, she told a neighbor \"the water of this pump is still the best in this city\"..", "When not in school, Tom Slye, Alice Slye, and James Slye accompanied their father to work and played soccer on the side walk on Spring Street..", "Tony Jordan bought a hamburger from the butcher shop on Johnson Street.", "It was a hot day, so Alex Satterfield drank lots of water after the meal before he left his aunt's apartment.", "Jennifer Johnson died after two days in the hospital at Marston Court Road.", "Alex Satterfield had tea, biscuits and sausages that his aunt bought from the butcher shop on Johnson Stree.", "Tony Jordan went back home, fried the burger and the fries and ate his meal as he watched TV.", "Alex Satterfield passed by the Police Station on Cops Street to collect some information on his new case.", "Tony Jordan bought one pound of potatoes from the super market on Johnson Street.", "The next morning Tony Jordan was found dead in his bed.", "Two hours prior to his death, Alex Satterfield stopped off to visit his aunt Matilda Wright"];
-    var stm = new SharedTransactionalMemory(new WebSocket('ws://172.22.245.226:904/'));
+    var stm = new SharedTransactionalMemory(new WebSocket('ws://192.168.0.12:904/'));
 
     function updateElement(element, snippet) {
       element.innerText = snippet.text;
@@ -26,10 +26,8 @@
       stm.try(function(state) {
         if (!('snippets' in state))
           state('snippets', snippets.map(function(snippet, index) {
-            return {'text': snippet, 'x': 0, 'y': 0, 'z': index, 'scale': 1, 'angle': 0, 'identifier': index}
+            return {'text': snippet, 'hold': false, 'x': 0, 'y': 0, 'z': index, 'scale': 1, 'angle': 0, 'identifier': index}
           }));
-        else
-          state.snippets();
       }).then(function(state) {
         var element;
         state.snippets.forEach(function(snippet) {
@@ -42,16 +40,38 @@
       }).done();
 
       stm.onchange = function(state) {
+        var el;
         for (var i = 0; i < state.snippets.length; i++)
-          updateElement(document.getElementById('snippet-' + state.snippets[i].identifier), state.snippets[i]);
+          if ((el = document.getElementById('snippet-' + state.snippets[i].identifier)) !== null)
+          updateElement(el, state.snippets[i]);
       }
 
+      mySnippets = [];
       interact('.interact')
       .draggable({
+        inertia: true,
+        onstart: function (event) {
+          stm.try(function(state) {
+            var identifier = parseInt(event.target.getAttribute('data-identifier'));
+            var index = state.snippets().map(function(s) {return s.identifier;}).indexOf(identifier);
+            var snippet = state.snippets[index];
+            if (!snippet.hold()) {
+              snippet.hold(true);
+            }
+          }).then(function(state) {
+            var identifier = parseInt(event.target.getAttribute('data-identifier'));
+            var index = state.snippets.map(function(s) {return s.identifier;}).indexOf(identifier);
+            var snippet = state.snippets[index];
+
+            if (snippet.hold)
+              mySnippets.push(identifier);
+          });
+        },
         onmove: function (event) {
           stm.try(function(state) {
-            var index = state.snippets().map(function(s) {return s.identifier;}).indexOf(parseInt(event.target.getAttribute('data-identifier')));
+            var index = state.snippets.$$.data.map(function(s) {return s.identifier;}).indexOf(parseInt(event.target.getAttribute('data-identifier')));
             var snippet = state.snippets[index];
+            //if (snippet.hold())
             snippet.x(snippet.x() + event.dx);
             snippet.y(snippet.y() + event.dy);
             updateElement(event.target, snippet());
