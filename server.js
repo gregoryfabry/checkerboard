@@ -1,44 +1,4 @@
-var http = require("http"),
-    url = require("url"),
-    path = require("path"),
-    fs = require("fs"),
-    port = process.argv[2] || 8888;
-
-http.createServer(function(request, response) {
-
-  var uri = url.parse(request.url).pathname, filename = path.join(process.cwd(), uri);
-
-  fs.exists(filename, function(exists) {
-    if(!exists) {
-      response.writeHead(404, {"Content-Type": "text/plain"});
-      response.write("404 Not Found\n");
-      response.end();
-      return;
-    }
-
-    if (fs.statSync(filename).isDirectory()) filename += '/index.html';
-
-    fs.readFile(filename, "binary", function(err, file) {
-      if(err) {
-        response.writeHead(500, {"Content-Type": "text/plain"});
-        response.write(err + "\n");
-        response.end();
-        return;
-      }
-
-      response.writeHead(200);
-      response.write(file, "binary");
-      response.end();
-    });
-  });
-}).listen(parseInt(port, 10));
-
-console.log("Static file server running at\n  => http://localhost:" + port + "/\nCTRL + C to shutdown");
-
 var WebSocket = require('ws');
-//var Datastore = require('nedb');
-Object.assign = require('object-assign');
-
 var WebSocketServer = new WebSocket.Server({'port': 904});
 var State = {};
 
@@ -166,8 +126,12 @@ function assign(left, right) {
 
 var messageHandler = {
   'event-open': function(conn, message) {
-    console.log('hi');
-    conn.sendObj('data-update-state', {'state': State});
+    // http://stackoverflow.com/a/2117523
+    conn.uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+      return v.toString(16);
+    });
+    conn.sendObj('data-update-state', {'uuid': conn.uuid, 'state': State});
   },
   'data-attempt-state': function(conn, message) {
     var lastAttempt;
@@ -183,9 +147,9 @@ var messageHandler = {
     if (typeof lastAttempt !== 'undefined')
       conns.forEach(function(otherConn) {
         if (otherConn != conn)
-          otherConn.sendObj('data-update-state', {'state': State});
+          otherConn.sendObj('data-update-state', {'uuid': conn.uuid, 'state': State});
       });
-    conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'state': State});
+    conn.sendObj('data-attempts-returned', {'uuid': conn.uuid, 'lastAttempt': lastAttempt, 'state': State});
   }
 };
 
