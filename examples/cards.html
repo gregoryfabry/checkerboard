@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--- cards png source: https://code.google.com/p/poo-proyects/ -->
+  <script src="../lib/checkerboard.js"></script>
+  <script src="../lib/q.min.js"></script>
+  <script src="interact-1.2.4.min.js"></script>
+  <style type="text/css">
+  html, body {background-color: #222222; overflow: hidden; height: 100%}
+  #container {min-height: 100%}
+  .card { height: 315px; width: 225px; text-align: center; position: absolute; display: inline-block; font-size: 16pt; padding: 0px; margin: 0px; -webkit-touch-callout: none; -webkit-user-select: none; khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none}
+  </style>
+  <script>
+    var stm, ws = new WebSocket('ws://localhost:904/');
+    ws.onopen = function() {
+      stm = new SharedTransactionalMemory(ws);
+
+      stm.onready = function() {
+        stm.try(function(state) {
+          if (!('cards' in state)) {
+            var cards = [];
+            for (var i = 0; i < 52; i++)
+              cards.push({'hold': false, 'x': i * 15, 'y': 0, 'z': i, 'scale': 1, 'angle': 0, 'identifier': i});
+
+            state('cards', cards);
+            state('lastZ', 52);
+          }
+        }).then(function(state) {
+          var element, background;
+          state.cards().forEach(function(card, index) {
+            element = document.createElement('div');
+            element.className = "interact card";
+            background = 'url(\'poker.cards.bypx.png\') ' + ((index % 13) * 225) + 'px ' + (parseInt(index / 13) * 315) + 'px';
+            element.style.background = background;
+            element.setAttribute('data-identifier', card.identifier);
+            updateElement(element, card);
+            document.getElementById('container').appendChild(element);
+          });
+        }).done();
+      }
+
+      stm.onchange = function(state) {
+        var el;
+        for (var i = 0; i < state.cards().length; i++)
+          if ((el = document.getElementById('card-' + state.cards[i]().identifier)) !== null)
+            updateElement(el, state.cards[i]());
+      }
+
+      stm.sync(50);
+    }
+
+    function updateElement(element, card) {
+      element.style['z-index'] = card.z;
+      element.id = 'card-' + card.identifier;
+
+      element.style.webkitTransform =
+      element.style.transform =
+      'translate(' + card.x + 'px, ' + card.y + 'px) rotate(' + card.angle + 'deg)';
+    };
+
+    function getCard(state, target) {
+      var identifier = parseInt(target.getAttribute('data-identifier'));
+      var index = state.cards.$$.data.map(function(c) {return c.identifier;}).indexOf(identifier);
+      return state.cards[index];
+    }
+
+    var onstart = function (event) {
+      stm.try(function(state) {
+        card = getCard(state, event.target);
+
+        if (!card.hold()) {
+          card.hold(stm.uuid());
+        }
+      });
+    };
+
+    var onmove = function (event) {
+      stm.try(function(state) {
+        card = getCard(state, event.target);
+
+        if (card.hold() == stm.uuid())
+        {
+          card.x(card.x() + event.dx);
+          card.y(card.y() + event.dy);
+          card.angle(card.angle() + (1 * (event.da || 0)));
+          card.z(state.lastZ() + 1);
+          state.lastZ(state.lastZ() + 1);
+          updateElement(event.target, card());
+        }
+      });
+    };
+
+    var onend = function(event) {
+      stm.try(function(state) {
+        card = getCard(state, event.target);
+
+        if (card.hold() == stm.uuid())
+          card.hold(false);
+      });
+    };
+
+    interact('.interact')
+      .draggable({
+        inertia: true,
+        restrict: {restriction: '#container'},
+        onstart: onstart,
+        onmove: onmove,
+        onend: onend
+      })
+      .gesturable({
+        inertia: true,
+        onstart: onstart,
+        onmove: onmove,
+        onend: onend
+      });
+  </script>
+</head>
+<body>
+<div id="container">&nbsp;</div>
+</body>
+</html>
