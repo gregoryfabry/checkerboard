@@ -1,6 +1,6 @@
 {
   "name": "checkerboard",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Shared transactional memory with 0 server-side logic.",
   "author": "Gregory Fabry <glfabry2@illinois.edu>",
   "main": "main.js",

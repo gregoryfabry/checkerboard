@@ -1,1 +1,1 @@
-var checkerboard = new (require('../main.js')).Server(904);
+var checkerboard = new (require('checkerboard')).Server(904);

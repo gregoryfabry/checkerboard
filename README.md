@@ -1,5 +1,3 @@
-# Checkerboard: ridiculously easy shared state in JS
-
 Checkerboard is a library that lets you easily create shared state among clients with zero server-side logic. It has two components: a server back-end written with node.js, and a client library for the browser.
 
 ## Theory
@@ -8,7 +6,7 @@ Suppose you have some state that you want to share among multiple networked clie
 
 For example:
 
-Let's say the state has a counter, an integer that can be incremented by one. If client A increments the counter, and then client B also increments the counter before it receives the data from client A, client Bs change will be lost.
+Let's say the state has a counter, an integer that can be incremented by one. If client A increments the counter, and then client B also increments the counter before it receives the data from client A, client B's change will be lost.
 
 Instead of blindly making a change, a client submits an attempt. Each attempt has a 'diff', which is a record of what data the client has, and a 'patch', which is the change the client wants to make. When the server receives an attempt, it compares the diff to its own state. If the client has accurate data, then it applies the patch. Otherwise, it notifies that client with the updated state and lets it try again.
 

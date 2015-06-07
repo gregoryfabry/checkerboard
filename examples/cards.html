@@ -6,17 +6,32 @@
   <script src="../lib/q.min.js"></script>
   <script src="interact-1.2.4.min.js"></script>
   <style type="text/css">
-  html, body {background-color: #222222; overflow: hidden; height: 100%}
-  #container {min-height: 100%}
-  .card { height: 315px; width: 225px; text-align: center; position: absolute; display: inline-block; font-size: 16pt; padding: 0px; margin: 0px; -webkit-touch-callout: none; -webkit-user-select: none; khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none}
+  html, body {
+    background-color: #222222;
+    overflow: hidden;
+    height: 100%;
+  }
+  #container {
+    min-height: 100%;
+  }
+  .card {
+    background-image: url('poker.cards.bypx.png');
+    height: 315px;
+    width: 225px;
+    text-align: center;
+    position: absolute;
+    display: inline-block;
+    font-size: 16pt;
+    padding: 0px;
+  }
   </style>
   <script>
-    var stm, ws = new WebSocket('ws://localhost:904/');
+    var cb, ws = new WebSocket('ws://' + (window.location.hostname || 'localhost') + ':904/');
     ws.onopen = function() {
-      stm = new SharedTransactionalMemory(ws);
+      cb = new Checkerboard(ws);
 
-      stm.onready = function() {
-        stm.try(function(state) {
+      cb.onready = function() {
+        cb.try(function(state) {
           if (!('cards' in state)) {
             var cards = [];
             for (var i = 0; i < 52; i++)
@@ -30,8 +45,7 @@
           state.cards().forEach(function(card, index) {
             element = document.createElement('div');
             element.className = "interact card";
-            background = 'url(\'poker.cards.bypx.png\') ' + ((index % 13) * 225) + 'px ' + (parseInt(index / 13) * 315) + 'px';
-            element.style.background = background;
+            element.style.backgroundPosition = ((index % 13) * 225) + 'px ' + (parseInt(index / 13) * 315) + 'px';
             element.setAttribute('data-identifier', card.identifier);
             updateElement(element, card);
             document.getElementById('container').appendChild(element);
@@ -39,14 +53,14 @@
         }).done();
       }
 
-      stm.onchange = function(state) {
+      cb.onchange = function(state) {
         var el;
         for (var i = 0; i < state.cards().length; i++)
           if ((el = document.getElementById('card-' + state.cards[i]().identifier)) !== null)
             updateElement(el, state.cards[i]());
       }
 
-      stm.sync(50);
+      cb.sync(100);
     }
 
     function updateElement(element, card) {
@@ -65,20 +79,20 @@
     }
 
     var onstart = function (event) {
-      stm.try(function(state) {
+      cb.try(function(state) {
         card = getCard(state, event.target);
 
         if (!card.hold()) {
-          card.hold(stm.uuid());
+          card.hold(cb.uuid());
         }
       });
     };
 
     var onmove = function (event) {
-      stm.try(function(state) {
+      cb.try(function(state) {
         card = getCard(state, event.target);
 
-        if (card.hold() == stm.uuid())
+        if (card.hold() == cb.uuid())
         {
           card.x(card.x() + event.dx);
           card.y(card.y() + event.dy);
@@ -91,10 +105,10 @@
     };
 
     var onend = function(event) {
-      stm.try(function(state) {
+      cb.try(function(state) {
         card = getCard(state, event.target);
 
-        if (card.hold() == stm.uuid())
+        if (card.hold() == cb.uuid())
           card.hold(false);
       });
     };
@@ -108,7 +122,6 @@
         onend: onend
       })
       .gesturable({
-        inertia: true,
         onstart: onstart,
         onmove: onmove,
         onend: onend
