@@ -33,7 +33,7 @@ In examples/cards.html change the WebSocket address to whatever address you are 
 
     var port = 904;
     var Checkerboard = require('checkerboard');
-    var CheckerboardServer = new Checkerboard.Server(port, \[optionalState\]);
+    var CheckerboardServer = new Checkerboard.Server(port, [optionalState]);
 
 The server constructor takes one or two arguments: a port, and optionally a starting state. If you do not provide a starting state, it will just create an empty object and use that.
 
