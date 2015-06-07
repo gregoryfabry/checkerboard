@@ -1,6 +1,6 @@
 ![cards example](/examples/demo.gif?raw=true)
 
-Checkerboard is a library that lets you easily create shared state among clients with zero server-side logic. It has two components: a server back-end written with node.js, and a client library for the browser.
+Checkerboard is a library that lets you easily create shared state among clients with zero server-side logic. It has two components: a server back-end written with node.js, and a client library for the browser. Its goal is simplicity: the cards demo is less than a hundred lines of JavaScript.
 
 ## Theory
 

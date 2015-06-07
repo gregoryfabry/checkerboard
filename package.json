@@ -1,6 +1,6 @@
 {
   "name": "checkerboard",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Shared transactional memory with zero server-side logic.",
   "author": "Gregory Fabry <glfabry2@illinois.edu>",
   "repository": {
