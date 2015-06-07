@@ -1,8 +1,12 @@
 {
   "name": "checkerboard",
-  "version": "0.0.2",
-  "description": "Shared transactional memory with 0 server-side logic.",
+  "version": "0.0.4",
+  "description": "Shared transactional memory with zero server-side logic.",
   "author": "Gregory Fabry <glfabry2@illinois.edu>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gregoryfabry/checkerboard"
+  },
   "main": "main.js",
   "dependencies": {
     "ws": "^0.7.2"

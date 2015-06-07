@@ -1,3 +1,5 @@
+![gifv](http://i.imgur.com/6KPvwp2.gifv)
+
 Checkerboard is a library that lets you easily create shared state among clients with zero server-side logic. It has two components: a server back-end written with node.js, and a client library for the browser.
 
 ## Theory
