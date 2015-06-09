@@ -55,7 +55,7 @@ Then:
 
 On the client side, Checkerboard exposes two events and three methods.
 
-    cb.onready = function(state) { /* ... */} // called when initial state received
+    cb.onready = function(state) { /* ... */ } // called when initial state received
 
     cb.onchange = function(state) { /* ... */ } // called when state changed (NOT on initial receive!)
 
