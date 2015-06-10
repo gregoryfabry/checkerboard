@@ -24,24 +24,38 @@
 
     var conns = [];
 
-    Event.on('event-open', function(conn, message) {
-      // http://stackoverflow.com/a/2117523
-      conn.uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    // http://stackoverflow.com/a/2117523
+    function uuid() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
         return v.toString(16);
       });
+    }
+
+    Event.on('open', function(conn, message) {
+      do {
+        conn.uuid = uuid();
+      } while(conns.map(function(c) { return c !== conn ? c.uuid : undefined; }).indexOf(conn.uuid) > 0);
 
       conn.sendObj('data-uuid', {'uuid': conn.uuid});
-      conn.sendObj('data-update-state', {'patch': State});
+    });
+
+    Event.on('initial', function(conn, message) {
+      conn.sendObj('data-update-state', {'patch': typeof conn.state === 'function' ? conn.state(State) : State});
+    });
+
+    Event.on('close', function(conn) {
+      conns.splice(conns.indexOf(conn), 1);
     });
 
     Event.on('data-attempt-state', function(conn, message) {
       var lastAttempt;
       var patch = {};
+      var curState = typeof conn.state === 'function' ? conn.state(State) : State;
       message.attempts.some(function(attempt) {
         if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), State)) {
           lastAttempt = attempt.id;
-          Utility.assign(attempt.patch, State);
+          Utility.assign(attempt.patch, curState);
           Utility.assign(attempt.patch, patch, true);
           return false;
         }
@@ -51,7 +65,7 @@
       if (typeof lastAttempt !== 'undefined')
         conns.forEach(function(otherConn) {
           if (otherConn != conn)
-            otherConn.sendObj('data-update-state', {'patch': patch});
+            otherConn.sendObj('data-update-state', {'patch': typeof otherConn.state === 'function' ? otherConn.state(patch) : patch});
         });
       conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': patch});
     });
@@ -62,7 +76,8 @@
       };
       conns.push(conn);
 
-      Event.emit('event-open', conn);
+      Event.emit('open', conn);
+      Event.emit('initial', conn);
 
       conn.on('message', function(json) {
         var envelope = JSON.parse(json);
@@ -71,8 +86,7 @@
       });
 
       conn.on('close', function() {
-        Event.emit('event-close', conn);
-        conns.splice(conns.indexOf(conn), 1);
+        Event.emit('close', conn);
       });
     });
 
@@ -133,8 +147,10 @@
 
   // returns true if non-obj props are equal
   function propDiff(left, right) {
-    if (typeof left === 'undefined' && typeof right === 'undefined')
-      return true;
+    if (typeof left === 'undefined' && typeof right !== 'undefined')
+      return false;
+    else if (typeof left !== 'undefined' && typeof right === 'undefined')
+      return false;
     else if (left === null && right === null)
       return true;
     else if (isNaN(left) && isNaN(right) && typeof left === 'number' && typeof right === 'number')

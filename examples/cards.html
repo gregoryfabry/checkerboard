@@ -29,10 +29,9 @@
     var cb, ws = new WebSocket('ws://' + (window.location.hostname || 'localhost') + ':904/');
     ws.onopen = function() {
       cb = new Checkerboard(ws);
-      return;
-      cb.onready = function() {
+      cb.on('ready', function() {
         cb.try(function(state) {
-          if (!('cards' in state)) {
+          if (typeof state('cards') === 'undefined') {
             var cards = [];
             for (var i = 0; i < 52; i++)
               cards.push({'hold': false, 'x': i * 15, 'y': 0, 'z': i, 'scale': 1, 'angle': 0, 'identifier': i});
@@ -42,7 +41,7 @@
           }
         }).then(function(state) {
           var element, background;
-          state.cards().forEach(function(card, index) {
+          state('cards').forEach(function(card, index) {
             element = document.createElement('div');
             element.className = "interact card";
             element.style.backgroundPosition = ((index % 13) * 225) + 'px ' + (parseInt(index / 13) * 315) + 'px';
@@ -51,16 +50,16 @@
             document.getElementById('container').appendChild(element);
           });
         }).done();
-      }
+      });
 
-      cb.onchange = function(state) {
+      cb.on('change', function(state) {
         var el;
-        for (var i = 0; i < state.cards().length; i++)
-          if ((el = document.getElementById('card-' + state.cards[i]().identifier)) !== null)
-            updateElement(el, state.cards[i]());
-      }
+        for (var i = 0; i < state('cards').length; i++)
+          if ((el = document.getElementById('card-' + state.cards[i]('identifier'))) !== null)
+            updateElement(el, state.cards(i));
+      });
 
-      cb.sync(100);
+      cb.sync(50);
     }
 
     function updateElement(element, card) {
@@ -74,7 +73,7 @@
 
     function getCard(state, target) {
       var identifier = parseInt(target.getAttribute('data-identifier'));
-      var index = state.cards.$$.data.map(function(c) {return c.identifier;}).indexOf(identifier);
+      var index = state('cards').map(function(c) {return c.identifier;}).indexOf(identifier);
       return state.cards[index];
     }
 
@@ -82,8 +81,8 @@
       cb.try(function(state) {
         card = getCard(state, event.target);
 
-        if (!card.hold()) {
-          card.hold(cb.uuid());
+        if (!card('hold')) {
+          card('hold', cb.uuid());
         }
       });
     };
@@ -92,14 +91,14 @@
       cb.try(function(state) {
         card = getCard(state, event.target);
 
-        if (card.hold() == cb.uuid())
+        if (card('hold') == cb.uuid())
         {
-          card.x(card.x() + event.dx);
-          card.y(card.y() + event.dy);
-          card.angle(card.angle() + (1 * (event.da || 0)));
-          card.z(state.lastZ() + 1);
-          state.lastZ(state.lastZ() + 1);
-          updateElement(event.target, card());
+          card('x', card('x') + event.dx);
+          card('y', card('y') + event.dy);
+          card('angle', card('angle') + (1 * (event.da || 0)));
+          card('z', state('lastZ') + 1);
+          state('lastZ', state('lastZ') + 1);
+          updateElement(event.target, card().data);
         }
       });
     };
@@ -108,8 +107,8 @@
       cb.try(function(state) {
         card = getCard(state, event.target);
 
-        if (card.hold() == cb.uuid())
-          card.hold(false);
+        if (card('hold') == cb.uuid())
+          card('hold', false)
       });
     };
 
