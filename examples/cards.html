@@ -29,7 +29,7 @@
     var cb, ws = new WebSocket('ws://' + (window.location.hostname || 'localhost') + ':904/');
     ws.onopen = function() {
       cb = new Checkerboard(ws);
-
+      return;
       cb.onready = function() {
         cb.try(function(state) {
           if (!('cards' in state)) {
