@@ -1,5 +1,6 @@
 (function() {
 
+  var Event = new (require('events').EventEmitter)();
   var WebSocket = require('ws');
   var Utility = require('./lib/checkerboard.js').Utility;
 
@@ -22,60 +23,60 @@
     this.WebSocketServer = WebSocketServer;
 
     var conns = [];
-    var id = 0;
 
-    var messageHandler = {
-      'event-open': function(conn, message) {
-        // http://stackoverflow.com/a/2117523
-        conn.uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
-          return v.toString(16);
-        });
+    Event.on('event-open', function(conn, message) {
+      // http://stackoverflow.com/a/2117523
+      conn.uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+        return v.toString(16);
+      });
 
-        conn.sendObj('data-uuid', {'uuid': conn.uuid});
-        conn.sendObj('data-update-state', {'patch': State});
-      },
-      'data-attempt-state': function(conn, message) {
-        var lastAttempt;
-        var patch = {};
-        message.attempts.some(function(attempt) {
-          if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), State)) {
-            lastAttempt = attempt.id;
-            Utility.assign(attempt.patch, State);
-            Utility.assign(attempt.patch, patch, true);
-            return false;
-          }
-          else
-            return true;
+      conn.sendObj('data-uuid', {'uuid': conn.uuid});
+      conn.sendObj('data-update-state', {'patch': State});
+    });
+
+    Event.on('data-attempt-state', function(conn, message) {
+      var lastAttempt;
+      var patch = {};
+      message.attempts.some(function(attempt) {
+        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), State)) {
+          lastAttempt = attempt.id;
+          Utility.assign(attempt.patch, State);
+          Utility.assign(attempt.patch, patch, true);
+          return false;
+        }
+        else
+          return true;
+      });
+      if (typeof lastAttempt !== 'undefined')
+        conns.forEach(function(otherConn) {
+          if (otherConn != conn)
+            otherConn.sendObj('data-update-state', {'patch': patch});
         });
-        if (typeof lastAttempt !== 'undefined')
-          conns.forEach(function(otherConn) {
-            if (otherConn != conn)
-              otherConn.sendObj('data-update-state', {'patch': patch});
-          });
-        conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': patch});
-      }
-    };
+      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': patch});
+    });
 
     WebSocketServer.on('connection', function(conn) {
-      conn.id = id++;
       conn.sendObj = function(channel, message) {
         conn.send(JSON.stringify({'channel': channel, 'message': message}));
       };
       conns.push(conn);
 
-      if ('event-open' in messageHandler) messageHandler['event-open'](conn);
+      Event.emit('event-open', conn);
 
       conn.on('message', function(json) {
         var envelope = JSON.parse(json);
-        if (envelope.channel in messageHandler)
-          messageHandler[envelope.channel](conn, envelope.message);
+        if (typeof envelope.channel !== 'undefined')
+          Event.emit(envelope.channel, conn, envelope.message);
       });
 
       conn.on('close', function() {
-        conns.splice(conns.map(function(conn) { return conn.id; }).indexOf(conn.id), 1);
+        Event.emit('event-close', conn);
+        conns.splice(conns.indexOf(conn), 1);
       });
     });
+
+    return Event;
   };
 
   // returns true if object passes
