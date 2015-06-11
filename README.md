@@ -62,7 +62,7 @@ On the client side, Checkerboard exposes two events and three methods.
 Note that you cannot change state in an onready or onchange function. Whenever you want to change the state, you must call try(callback) like this:
 
     cb.try(function(state) {
-      state.property('newValue');
+      state('property', 'newValue');
     });
 
 The try method, as its name implies, tries to make a state change. If it fails, then it tries again until it succeeds.
@@ -86,6 +86,15 @@ Nested properties:
 Arrays:
 
     state.array[0]('property')
+
+**CAVEAT: some property names are 'forbidden': anything that is a Function property or in Function.prototype. The full list is:
+
+    arguments, arity, caller, displayName, length, name, prototype, apply, bind, call, isGenerator, toSource, toString
+
+If you want to access properties with these names, you must do the following:
+
+    state.person('name') // quoted access is okay
+    state.person._name('first') // otherwise prepend with an underscore
 
 Once you make some changes, you want to call the sync() method:
 
