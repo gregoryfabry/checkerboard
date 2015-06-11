@@ -69,24 +69,23 @@ The try method, as its name implies, tries to make a state change. If it fails, 
 
 The callback function receives one parameter, which is a "diffable state." It uses getters and setters to change its values. Here is how getters and setters are used:
 
-    // read a property
-    state.property();
-    // read a property on a nested object. notice parens only on last term
-    state.nestedObject.property();
-    // write a property that already exists
-    state.property('newValue');
-    // if you're doing that, then you might want to make sure the property exists:
-    if ('property' in state) state.property('newValue');
-    // because if it doesn't:
-    state.nonExistantProperty('newValue') // ERROR!
-    // write a property that may or may not exist (safer):
-    state('newProperty', 'newValue');
-    // read an array value
-    state.array[0]();
-    // write an array value that exists (dangerous - see above)
-    state.array[0]('newValue');
-    // otherwise
-    state.array(0, 'newValue');
+*Note: getters and setters have changed in 0.1.*
+
+Read a property:
+
+    state('property');
+
+Write a property:
+
+    state('property', 'value');
+
+Nested properties:
+
+    state.nested.moreNested('property');
+
+Arrays:
+
+    state.array[0]('property')
 
 Once you make some changes, you want to call the sync() method:
 

@@ -1,6 +1,6 @@
 {
   "name": "checkerboard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared transactional memory with zero server-side logic.",
   "author": "Gregory Fabry <glfabry2@illinois.edu>",
   "repository": {
@@ -16,12 +16,8 @@
   },
   "devDependencies": {
     "chai": "^3.0.0",
+    "istanbul": "^0.3.15",
     "mocha": "^2.2.5"
-  },
-  "config": {
-      "blanket": {
-        "pattern": "main.js"
-      }
   },
   "license": "MIT"
 }
