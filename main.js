@@ -53,7 +53,7 @@
       var patch = {};
       var curState = typeof conn.state === 'function' ? conn.state(State) : State;
       message.attempts.some(function(attempt) {
-        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), State)) {
+        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), curState)) {
           lastAttempt = attempt.id;
           Utility.assign(attempt.patch, curState);
           Utility.assign(attempt.patch, patch, true);
