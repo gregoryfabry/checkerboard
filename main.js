@@ -50,8 +50,7 @@
 
     Event.on('data-attempt-state', function(conn, message) {
       var lastAttempt;
-      var basePatch = {};
-      var patch = typeof conn.state === 'function' ? conn.state(basePatch) : basePatch;
+      var patch = {};
       var curState = typeof conn.state === 'function' ? conn.state(State) : State;
       message.attempts.some(function(attempt) {
         if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), State)) {
@@ -69,7 +68,7 @@
       if (typeof lastAttempt !== 'undefined')
         conns.forEach(function(otherConn) {
           if (otherConn != conn)
-            otherConn.sendObj('data-update-state', {'patch': typeof otherConn.state === 'function' ? otherConn.state(basePatch) : patch});
+            otherConn.overwriteState(); // temp fix
         });
     });
 
