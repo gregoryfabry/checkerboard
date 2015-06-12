@@ -50,7 +50,8 @@
 
     Event.on('data-attempt-state', function(conn, message) {
       var lastAttempt;
-      var patch = {};
+      var basePatch = {};
+      var patch = typeof conn.state === 'function' ? conn.state(basePatch) : basePatch;
       var curState = typeof conn.state === 'function' ? conn.state(State) : State;
       message.attempts.some(function(attempt) {
         if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), State)) {
@@ -62,17 +63,22 @@
         else
           return true;
       });
+
+      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': patch});
+
       if (typeof lastAttempt !== 'undefined')
         conns.forEach(function(otherConn) {
           if (otherConn != conn)
-            otherConn.sendObj('data-update-state', {'patch': typeof otherConn.state === 'function' ? otherConn.state(patch) : patch});
+            otherConn.sendObj('data-update-state', {'patch': typeof otherConn.state === 'function' ? otherConn.state(basePatch) : patch});
         });
-      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': patch});
     });
 
     WebSocketServer.on('connection', function(conn) {
       conn.sendObj = function(channel, message) {
         conn.send(JSON.stringify({'channel': channel, 'message': message}));
+      };
+      conn.overwriteState = function() {
+        conn.sendObj('data-overwrite-state', {'state': typeof conn.state === 'function' ? conn.state(State) : State});
       };
       conns.push(conn);
 

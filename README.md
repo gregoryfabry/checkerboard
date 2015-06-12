@@ -37,6 +37,25 @@ In examples/cards.html change the WebSocket address to whatever address you are 
 
 The server constructor takes one or two arguments: a port, and optionally a starting state. If you do not provide a starting state, it will just create an empty object and use that.
 
+The constructor returns an event emitter with 'open' and 'close' events. Also,
+
+    CheckerboardServer.on('open', function(conn) {
+      // ... assign state, etc
+    });
+
+Sometimes you want to give different states to different devices. To do this, assign a state function to the 'conn' parameter of the event callback. This function takes the base state and returns the state that you want to give to the client. For example:
+
+    CheckerboardServer.on('open', function(conn) {
+      conn.state = function(state) {
+        if (admin[conn.uuid] === true)
+          return state;
+        else
+          return state[conn.uuid];
+      };
+    });
+
+Checkerboard also emits when it receives a message from the client. (More on this in next section). You can send a message to a client with conn.sendObj(channel, message).
+
     var state = CheckerboardServer.state; // save to file, etc
 
 ### Browser
@@ -53,11 +72,12 @@ Then:
       var cb = new Checkerboard(ws);
     }
 
-On the client side, Checkerboard exposes two events and three methods.
 
-    cb.onready = function(state) { /* ... */ } // called when initial state received
+On the client side, Checkerboard exposes two events and four methods.
 
-    cb.onchange = function(state) { /* ... */ } // called when state changed (NOT on initial receive!)
+    cb.on('ready', function(state) { /* ... */ }); // called when initial state received
+
+    cb.on('change', function(state) { /* ... */ }); // called when state changed (NOT on initial receive!)
 
 Note that you cannot change state in an onready or onchange function. Whenever you want to change the state, you must call try(callback) like this:
 
@@ -87,7 +107,7 @@ Arrays:
 
     state.array[0]('property')
 
-**CAVEAT: some property names are 'forbidden': anything that is a Function property or in Function.prototype. The full list is:
+**CAVEAT: some property names are 'forbidden': anything that is a Function property or in Function.prototype.** The full list is:
 
     arguments, arity, caller, displayName, length, name, prototype, apply, bind, call, isGenerator, toSource, toString
 
@@ -106,6 +126,16 @@ Once you make some changes, you want to call the sync() method:
 
 Calling sync() with no parameters does a single sync. Calling sync(timeout) with a value in milliseconds sets an interval which repeatedly syncs state. Of course, if there are no state changes then nothing is submitted to the server. Changes from the server ('upstream') are always pushed. Calling sync(null) clears the timeout.
 
+Checkerboard exposes a 'send' method:
+
+    cb.send(channel, message);
+
+The server emits an event when it receives a message:
+
+    CheckerboardServer.on(channel, function(conn, message) {
+      // you can write props straight to conn for later retrieval  
+    })
+
 Checkerboard also has a uuid() function, which returns an id unique to that connection. This is useful if you want to 'claim' something (for example in cards.html when a card is picked up, the client sets the card's hold property to its uuid, so no other client can pick it up.)
 
 Lastly, try() returns a promise, so you can call a function when the state change is successful:
@@ -116,7 +146,7 @@ Lastly, try() returns a promise, so you can call a function when the state chang
       // render some html with correct state, etc.
     }).done();
 
-Checkerboard uses Q for promises. Two caveats: changes made in a then callback WON'T be saved - the new state is read only. Any state change always occurs in a try block. Also, I recommend calling done() or using some of Q's error handling features, otherwise any errors in your callbacks will be silenced.
+Checkerboard uses Q for promises. Two caveats: changes made in a then callback WON'T be saved - the new state is read only. Any state change always occurs in a try block. I recommend calling done() or using some of Q's error handling features, otherwise any errors in your callbacks will be silenced.
 
 ## Current issues
 
