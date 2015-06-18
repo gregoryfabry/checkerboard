@@ -1,5 +1,8 @@
 var expect = require("chai").expect;
+var clone = require('clone');
+
 var Client = require('../lib/checkerboard.js');
+
 
 describe('Client', function(){
   describe('Utility', function(){
@@ -57,8 +60,47 @@ describe('Client', function(){
         expect(DSF().patch).to.deep.equal({arrayOfNumbers:{$set:[6, 7, 8]}});
 
         var merged = DSF().merge();
-        var expected = Object.create(data);
+        var expected = clone(data);
         expected.arrayOfNumbers = [6, 7, 8];
+        expect(merged).to.deep.equal(expected);
+      });
+
+      it('overwrites a single value of an array', function() {
+        DSF.arrayOfNumbers(2, 6);
+
+        expect(DSF.arrayOfNumbers(2)).to.equal(6);
+        expect(DSF().diff).to.deep.equal({arrayOfNumbers:[, , 3]});
+        expect(DSF().patch).to.deep.equal({arrayOfNumbers:[, , 6]});
+
+        var merged = DSF().merge();
+        var expected = clone(data);
+        expected.arrayOfNumbers[2] = 6;
+        expect(merged).to.deep.equal(expected);
+      });
+
+      it('overwrites undefineds correctly', function() {
+        DSF.arrayOfUndefined(2, 6);
+
+        expect(DSF.arrayOfUndefined(2)).to.equal(6);
+        expect(DSF().diff).to.deep.equal({arrayOfUndefined:[, , '__undefined__']});
+        expect(DSF().patch).to.deep.equal({arrayOfUndefined:[, , 6]});
+
+        var merged = DSF().merge();
+        var expected = clone(data);
+        expected.arrayOfUndefined[2] = 6;
+        expect(merged).to.deep.equal(expected);
+      });
+
+      it('overwrites nulls correctly', function() {
+        DSF.arrayOfNull(2, 6);
+
+        expect(DSF.arrayOfNull(2)).to.equal(6);
+        expect(DSF().diff).to.deep.equal({arrayOfNull:[, , '__null__']});
+        expect(DSF().patch).to.deep.equal({arrayOfNull:[, , 6]});
+
+        var merged = DSF().merge();
+        var expected = clone(data);
+        expected.arrayOfNull[2] = 6;
         expect(merged).to.deep.equal(expected);
       });
 
