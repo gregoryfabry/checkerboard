@@ -56,10 +56,10 @@
         var el;
         for (var i = 0; i < state('cards').length; i++)
           if ((el = document.getElementById('card-' + state.cards[i]('identifier'))) !== null)
-            updateElement(el, state.cards(i));
+            if (el.getAttribute('data-hold') != "1") updateElement(el, state.cards(i));
       });
 
-      cb.sync(50);
+      cb.sync(200);
     }
 
     function updateElement(element, card) {
@@ -83,6 +83,7 @@
 
         if (!card('hold')) {
           card('hold', cb.uuid());
+          event.target.setAttribute('data-hold', 1);
         }
       });
     };
@@ -109,6 +110,7 @@
 
         if (card('hold') == cb.uuid())
           card('hold', false)
+          event.target.setAttribute('data-hold', 0);
       });
     };
 
