@@ -15,11 +15,6 @@ describe('Client', function(){
         'arrayOfObjects': [{a:0},{b:1},{c:2}],
         'arrayOfUndefined': [undefined, undefined, undefined, 4, 5, 6],
         'arrayOfNull': [null, null, null, 4, 5, 6],
-        'arrayOfEmptyArrays': [[],[],[]],
-        'arrayOfNumberArrays': [[1,2],[3,4],[5,6]],
-        'arrayOfObjectArrays': [[{a:0},{b:1}],[{c:2},{d:3}]],
-        'arrayOfUndefinedArrays':[[undefined, undefined],[undefined,undefined]],
-        'arrayOfNullArrays':[[null,null],[null,null]],
         'objectEmpty': {},
         'objectWithNumbers': {a:0,b:1,c:2},
         'objectWithArrays': {a:[1,2,3],b:[4,5,6]},
@@ -78,7 +73,7 @@ describe('Client', function(){
         expect(merged).to.deep.equal(expected);
       });
 
-      it('overwrites undefineds correctly', function() {
+      it('updates undefined value of an array', function() {
         DSF.arrayOfUndefined(2, 6);
 
         expect(DSF.arrayOfUndefined(2)).to.equal(6);
@@ -91,7 +86,7 @@ describe('Client', function(){
         expect(merged).to.deep.equal(expected);
       });
 
-      it('overwrites nulls correctly', function() {
+      it('updates null value of an array', function() {
         DSF.arrayOfNull(2, 6);
 
         expect(DSF.arrayOfNull(2)).to.equal(6);
@@ -101,6 +96,32 @@ describe('Client', function(){
         var merged = DSF().merge();
         var expected = clone(data);
         expected.arrayOfNull[2] = 6;
+        expect(merged).to.deep.equal(expected);
+      });
+
+      it('sets value of an array to undefined', function() {
+        DSF.arrayOfNumbers(2, undefined);
+
+        expect(DSF.arrayOfNumbers(2)).to.equal(undefined);
+        expect(DSF().diff).to.deep.equal({arrayOfNumbers:[, , 3]});
+        expect(DSF().patch).to.deep.equal({arrayOfNumbers:[, , '__undefined__']});
+
+        var merged = DSF().merge();
+        var expected = clone(data);
+        expected.arrayOfNumbers[2] = undefined;
+        expect(merged).to.deep.equal(expected);
+      });
+
+      it('sets value of an array to null', function() {
+        DSF.arrayOfNumbers(2, null);
+
+        expect(DSF.arrayOfNumbers(2)).to.equal(null);
+        expect(DSF().diff).to.deep.equal({arrayOfNumbers:[, , 3]});
+        expect(DSF().patch).to.deep.equal({arrayOfNumbers:[, , '__null__']});
+
+        var merged = DSF().merge();
+        var expected = clone(data);
+        expected.arrayOfNumbers[2] = null;
         expect(merged).to.deep.equal(expected);
       });
 
