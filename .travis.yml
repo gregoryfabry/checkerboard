@@ -3,3 +3,6 @@ node_js:
   "stable"
 sudo:
   required
+
+before_script:
+  chmod +x node_modules/.bin/istanbul
