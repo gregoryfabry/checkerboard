@@ -9,7 +9,8 @@
   },
   "main": "main.js",
   "scripts": {
-    "test": "./node_modules/.bin/istanbul cover ./node_modules/mocha/bin/_mocha -- ./test/"
+    "test": "mocha test",
+    "coverage": "./node_modules/.bin/istanbul cover ./node_modules/mocha/bin/_mocha -- ./test/"
   },
   "dependencies": {
     "ws": "^0.7.2"
