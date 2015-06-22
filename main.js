@@ -44,11 +44,13 @@
 
     Event.on('data-attempt-state', function(conn, message) {
       var lastAttempt;
-      var myState = conn.state(State);
       message.attempts.some(function(attempt) {
-        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), myState().merge())) {
+        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), conn.state(State)().merge())) {
           lastAttempt = attempt.id;
-          myState().apply(attempt.patch);
+          conn.state(State)().apply(attempt.patch);
+          console.log(JSON.stringify(attempt.patch));
+          console.log(JSON.stringify(conn.state(State)().patch));
+          console.log('\n');
           return false;
         }
         else
@@ -59,7 +61,7 @@
           if (otherConn != conn)
             otherConn.sendObj('data-update-state', {'patch': otherConn.state(State)().patch});
         });
-      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': myState().patch});
+      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': conn.state(State)().patch});
       State().resolve();
     });
 
