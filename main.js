@@ -10,13 +10,15 @@
 
     var WebSocketServer = new WebSocket.Server({'port': port});
 
-    var State = {};
+    var State;
     if (typeof inputState !== 'undefined') {
       if (Utility.isPOJS(inputState))
-        State = inputState;
+        State = Utility.DiffableStateFactory(inputState);
       else
         throw new Error('Invalid state');
     }
+    else
+      State = Utility.DiffableStateFactory({});
 
     // external
     this.state = State;
@@ -24,24 +26,13 @@
 
     var conns = [];
 
-    // http://stackoverflow.com/a/2117523
-    function uuid() {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
-        return v.toString(16);
-      });
-    }
-
     Event.on('open', function(conn, message) {
       do {
         conn.uuid = uuid();
       } while(conns.map(function(c) { return c !== conn ? c.uuid : undefined; }).indexOf(conn.uuid) > 0);
 
       conn.sendObj('data-uuid', {'uuid': conn.uuid});
-    });
-
-    Event.on('initial', function(conn, message) {
-      conn.sendObj('data-update-state', {'patch': typeof conn.state === 'function' ? conn.state(State) : State});
+      conn.sendObj('data-set-state', {'state': State().merge()});
     });
 
     Event.on('close', function(conn) {
@@ -50,13 +41,10 @@
 
     Event.on('data-attempt-state', function(conn, message) {
       var lastAttempt;
-      var patch = {};
-      var curState = typeof conn.state === 'function' ? conn.state(State) : State;
       message.attempts.some(function(attempt) {
-        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), State)) {
+        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), State().merge())) {
           lastAttempt = attempt.id;
-          Utility.assign(attempt.patch, curState);
-          Utility.assign(attempt.patch, patch, true);
+          State().apply(attempt.patch);
           return false;
         }
         else
@@ -65,9 +53,9 @@
       if (typeof lastAttempt !== 'undefined')
         conns.forEach(function(otherConn) {
           if (otherConn != conn)
-            otherConn.sendObj('data-update-state', {'patch': typeof otherConn.state === 'function' ? otherConn.state(patch) : patch});
+            otherConn.sendObj('data-update-state', {'patch': State().patch});
         });
-      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': patch});
+      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': State().patch});
     });
 
     WebSocketServer.on('connection', function(conn) {
@@ -161,5 +149,13 @@
         return true;
 
     return false;
+  }
+
+  // http://stackoverflow.com/a/2117523
+  function uuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+      return v.toString(16);
+    });
   }
 }());
