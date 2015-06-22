@@ -5,4 +5,4 @@ sudo:
   required
 
 before_script:
-  chmod +x node_modules/.bin/istanbul
+  chmod +x node_modules/.bin/mocha
