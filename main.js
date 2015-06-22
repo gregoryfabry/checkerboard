@@ -44,10 +44,11 @@
 
     Event.on('data-attempt-state', function(conn, message) {
       var lastAttempt;
+      var myState = conn.state(State);
       message.attempts.some(function(attempt) {
-        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), conn.state(State)().merge())) {
+        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), myState().merge())) {
           lastAttempt = attempt.id;
-          State().apply(attempt.patch);
+          myState().apply(attempt.patch);
           return false;
         }
         else
@@ -58,7 +59,8 @@
           if (otherConn != conn)
             otherConn.sendObj('data-update-state', {'patch': otherConn.state(State)().patch});
         });
-      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': conn.state(State)().patch});
+      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': myState().patch});
+      myState().resolve();
     });
 
     WebSocketServer.on('connection', function(conn) {
