@@ -73,6 +73,10 @@
         return baseState;
       };
 
+      conn.refresh = function() {
+        conn.sendObj('data-set-state', {'state': conn.state(State)().merge()});
+      };
+
       Event.emit('open', conn);
       Event.emit('initial', conn);
 
