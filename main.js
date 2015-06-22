@@ -48,9 +48,6 @@
         if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), conn.state(State)().merge())) {
           lastAttempt = attempt.id;
           conn.state(State)().apply(attempt.patch);
-          console.log(JSON.stringify(attempt.patch));
-          console.log(JSON.stringify(conn.state(State)().patch));
-          console.log('\n');
           return false;
         }
         else
