@@ -60,7 +60,7 @@
             otherConn.sendObj('data-update-state', {'patch': otherConn.state(State)().patch});
         });
       conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': myState().patch});
-      myState().resolve();
+      State().resolve();
     });
 
     WebSocketServer.on('connection', function(conn) {
