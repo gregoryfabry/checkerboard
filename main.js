@@ -32,7 +32,10 @@
       } while(conns.map(function(c) { return c !== conn ? c.uuid : undefined; }).indexOf(conn.uuid) > 0);
 
       conn.sendObj('data-uuid', {'uuid': conn.uuid});
-      conn.sendObj('data-set-state', {'state': State().merge()});
+    });
+
+    Event.on('initial', function(conn, message) {
+      conn.sendObj('data-set-state', {'state': conn.state(State)().merge()});
     });
 
     Event.on('close', function(conn) {
@@ -42,7 +45,7 @@
     Event.on('data-attempt-state', function(conn, message) {
       var lastAttempt;
       message.attempts.some(function(attempt) {
-        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), State().merge())) {
+        if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), conn.state(State)().merge())) {
           lastAttempt = attempt.id;
           State().apply(attempt.patch);
           return false;
@@ -53,9 +56,9 @@
       if (typeof lastAttempt !== 'undefined')
         conns.forEach(function(otherConn) {
           if (otherConn != conn)
-            otherConn.sendObj('data-update-state', {'patch': State().patch});
+            otherConn.sendObj('data-update-state', {'patch': otherConn.state(State)().patch});
         });
-      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': State().patch});
+      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': conn.state(State)().patch});
     });
 
     WebSocketServer.on('connection', function(conn) {
@@ -63,6 +66,10 @@
         conn.send(JSON.stringify({'channel': channel, 'message': message}));
       };
       conns.push(conn);
+
+      conn.state = function(baseState) {
+        return baseState;
+      };
 
       Event.emit('open', conn);
       Event.emit('initial', conn);

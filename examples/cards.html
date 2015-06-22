@@ -59,7 +59,7 @@
             if (el.getAttribute('data-hold') != "1") updateElement(el, state.cards(i));
       });
 
-      cb.sync(200);
+      cb.sync(100);
     }
 
     function updateElement(element, card) {
