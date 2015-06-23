@@ -59,16 +59,25 @@
             if (el.getAttribute('data-hold') != "1") updateElement(el, state.cards(i));
       });
 
-      cb.sync(200);
+      cb.sync(100);
     }
 
     function updateElement(element, card) {
-      element.style['z-index'] = card.z;
-      element.id = 'card-' + card.identifier;
+      if (typeof card !== 'undefined') {
+        element.setAttribute('data-x', card.x);
+        element.setAttribute('data-y', card.y);
+        element.setAttribute('data-angle', card.angle);
+        element.style['z-index'] = card.z;
+        element.id = 'card-' + card.identifier;
+      }
+
+      var x = element.getAttribute('data-x');
+      var y = element.getAttribute('data-y');
+      var angle = element.getAttribute('data-angle');
 
       element.style.webkitTransform =
       element.style.transform =
-      'translate(' + card.x + 'px, ' + card.y + 'px) rotate(' + card.angle + 'deg)';
+      'translate(' + x + 'px, ' + y + 'px) rotate(' + angle + 'deg)';
     };
 
     function getCard(state, target) {
@@ -89,6 +98,12 @@
     };
 
     var onmove = function (event) {
+      var target = event.target;
+      target.setAttribute('data-x', parseFloat(target.getAttribute('data-x')) + event.dx);
+      target.setAttribute('data-y', parseFloat(target.getAttribute('data-y')) + event.dy);
+      target.setAttribute('data-angle', parseFloat(target.getAttribute('data-angle')) + (1 * (event.da || 0)));
+      updateElement(target);
+
       cb.try(function(state) {
         card = getCard(state, event.target);
 
@@ -99,7 +114,6 @@
           card('angle', card('angle') + (1 * (event.da || 0)));
           card('z', state('lastZ') + 1);
           state('lastZ', state('lastZ') + 1);
-          updateElement(event.target, card().data);
         }
       });
     };
