@@ -53,13 +53,18 @@
         else
           return true;
       });
-      if (typeof lastAttempt !== 'undefined')
+      if (typeof lastAttempt !== 'undefined') {
         conns.forEach(function(otherConn) {
           if (otherConn != conn)
             otherConn.sendObj('data-update-state', {'patch': otherConn.state(State)().patch});
         });
       conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': conn.state(State)().patch});
       State().resolve();
+      }
+      else {
+        State().resolve();
+        conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'state': conn.state(State)().merge()});
+      }
     });
 
     WebSocketServer.on('connection', function(conn) {

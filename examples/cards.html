@@ -52,14 +52,15 @@
         }).done();
       });
 
-      cb.on('change', function(state) {
-        var el;
-        for (var i = 0; i < state('cards').length; i++)
-          if ((el = document.getElementById('card-' + state.cards[i]('identifier'))) !== null)
-            if (el.getAttribute('data-hold') != "1") updateElement(el, state.cards(i));
-      });
-
+      cb.on('change', update);
       cb.sync(100);
+    }
+
+    function update(state) {
+      var el;
+      for (var i = 0; i < state('cards').length; i++)
+        if ((el = document.getElementById('card-' + state.cards[i]('identifier'))) !== null)
+          updateElement(el, state.cards(i));
     }
 
     function updateElement(element, card) {
@@ -70,6 +71,8 @@
         element.style['z-index'] = card.z;
         element.id = 'card-' + card.identifier;
       }
+      else
+        element.style['z-index'] = element.getAttribute('data-z');
 
       var x = element.getAttribute('data-x');
       var y = element.getAttribute('data-y');
@@ -93,6 +96,9 @@
         if (!card('hold')) {
           card('hold', cb.uuid());
           event.target.setAttribute('data-hold', 1);
+          card('z', state('lastZ') + 1);
+          state('lastZ', state('lastZ') + 1);
+          event.target.setAttribute('data-z', card('z'));
         }
       });
     };
@@ -112,8 +118,6 @@
           card('x', card('x') + event.dx);
           card('y', card('y') + event.dy);
           card('angle', card('angle') + (1 * (event.da || 0)));
-          card('z', state('lastZ') + 1);
-          state('lastZ', state('lastZ') + 1);
         }
       });
     };
