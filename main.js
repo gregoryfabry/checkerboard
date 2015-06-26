@@ -1,10 +1,11 @@
 (function() {
 
-  var Event = new (require('events').EventEmitter)();
   var WebSocket = require('ws');
   var Utility = require('./lib/checkerboard.js').Utility;
 
   module.exports.Server = function(port, inputState) {
+    var Event = new (require('events').EventEmitter)();
+
     if (typeof port === 'undefined')
       throw new Error('No port specified.');
 
@@ -21,8 +22,8 @@
       State = Utility.DiffableStateFactory({});
 
     // external
-    this.state = State;
-    this.WebSocketServer = WebSocketServer;
+    Event.state = State;
+    Event.WebSocketServer = WebSocketServer;
 
     var conns = [];
 
