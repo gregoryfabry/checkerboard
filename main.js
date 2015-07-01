@@ -45,7 +45,7 @@
 
     Event.on('data-attempt-state', function(conn, message) {
       var lastAttempt;
-      message.attempts.some(function(attempt) {
+      var someFailed = message.attempts.some(function(attempt) {
         if (recursiveOneWayDiff(Utility.unStringReplace(attempt.diff), conn.state(State)().merge())) {
           lastAttempt = attempt.id;
           conn.state(State)().apply(attempt.patch);
@@ -56,11 +56,16 @@
       });
       if (typeof lastAttempt !== 'undefined') {
         conns.forEach(function(otherConn) {
-          if (otherConn != conn)
-            otherConn.sendObj('data-update-state', {'patch': otherConn.state(State)().patch});
+          if (otherConn != conn) {
+            var patch = otherConn.state(State)().patch;
+            if (Object.keys(patch).length > 0)
+              otherConn.sendObj('data-update-state', {'patch': patch});
+          }
         });
-      conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': conn.state(State)().patch});
-      State().resolve();
+      }
+      if (!someFailed) {
+        conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt, 'patch': conn.state(State)().patch});
+        State().resolve();
       }
       else {
         State().resolve();
