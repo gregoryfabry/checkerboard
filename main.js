@@ -1,6 +1,6 @@
 (function() {
 
-  var WebSocket = require('ws');
+  var WebSocket = require('./node_modules/ws/index.js');
   var Utility = require('./lib/checkerboard.js').Utility;
 
   module.exports.Server = function(port, inputState) {
