@@ -1,0 +1,1 @@
+require('./main.js').createServer(9999);

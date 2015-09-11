@@ -1,7 +1,7 @@
 (function() {
 
   var WebSocket = require('./node_modules/ws/index.js');
-  var Checkerboard = require('./lib/checkerboard.js');
+  var Checkerboard = require('./lib/checkerboard.js').Checkerboard;
 
   module.exports.createServer = function(port, inputState) {
     var Event = new (require('events').EventEmitter)();
@@ -11,7 +11,7 @@
 
     var WebSocketServer = new WebSocket.Server({'port': port});
 
-    var state = new Checkerboard({} || inputState);
+    var state = new Checkerboard.DiffableState({} || inputState);
 
     // external
     Event.state = state;
@@ -35,9 +35,10 @@
       var lastAttempt;
       conn.attempting = true;
       var someFailed = message.attempts.some(function(attempt) {
-        if (oneWayDiff(attempt, state) || true) {
+        console.log(JSON.stringify(state.proxy), JSON.stringify(attempt));
+        if (oneWayDiff(state.proxy, attempt.diff)) {
           lastAttempt = attempt.id;
-          state.merge(attempt);
+          state.merge(attempt.patch);
           return false;
         }
         else
@@ -45,6 +46,29 @@
       });
       conn.sendObj('data-attempts-returned', {'lastAttempt': lastAttempt});
       conn.attempting = false;
+    });
+    
+    Event.on('data-subscribe', function(conn, message) {
+      state.subscribe(message.path, function(data, change) {
+        if (conn.attempting)
+          return;
+        var components = message.path.split('.');
+        var leafParent = {};
+        var leafProp = components[components.length - 1];
+        var root;
+        for (var i = components.length - 1; i >= 0; i--) {
+          var n = {};
+          n[components[i]] = root || leafParent;
+          root = n;
+          if (i === components.length - 1)
+            leafParent = root;
+        }
+        if (Object.keys(change).length === 0)
+          leafParent[leafProp] = data;
+        else
+          leafParent[leafProp] = change;
+        conn.sendObj('data-update-state', {'patch': root});
+      });
     });
 
     WebSocketServer.on('connection', function(conn) {
@@ -68,6 +92,34 @@
 
     return Event;
   };
+  
+  function oneWayDiff(origin, comparand) {
+    if (!(isPOJS(origin) && isPOJS(comparand)))
+      return false;
+    
+    var comp;
+    for (var prop in comparand) {
+      comp = (isPOJS(comparand[prop]) && '$undefined' in comparand[prop]) ? undefined : comparand[prop];
+      if (isPOJS(origin[prop]) || isPOJS(comp))
+        return oneWayDiff(origin[prop], comp);
+      else if (typeof comp !== typeof origin[prop])
+        return false;
+      else if (comp !== origin[prop])
+        return false;
+    }
+    
+    return true;
+  }
+  
+  function isPOJS(prop) {
+    return !(
+      prop instanceof Date ||
+      prop instanceof RegExp ||
+      prop instanceof String ||
+      prop instanceof Number) &&
+      typeof prop === 'object' &&
+      prop !== null;
+  }
 
   // http://stackoverflow.com/a/2117523
   function uuid() {
