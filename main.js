@@ -3,7 +3,7 @@
   var WebSocket = require('./node_modules/ws/index.js');
   var Checkerboard = require('./lib/checkerboard.js').Checkerboard;
 
-  module.exports.createServer = function(port, inputState) {
+  module.exports.createServer = function(port, inputState, refreshRate) {
     var Event = new (require('events').EventEmitter)();
 
     if (typeof port === 'undefined')
@@ -63,18 +63,33 @@
           if (i === components.length - 1)
             leafParent = root;
         }
-        if (Object.keys(change).length === 0)
+        if (typeof change === 'undefined')
           leafParent[leafProp] = data;
         else
           leafParent[leafProp] = change;
-        conn.sendObj('data-update-state', {'patch': root});
+        conn.enqueue('data-update-state', {'patch': root});
       });
     });
 
     WebSocketServer.on('connection', function(conn) {
       conn.sendObj = function(channel, message) {
-        conn.send(JSON.stringify({'channel': channel, 'message': message}));
+        if (conn.readyState !== WebSocket.CLOSING && conn.readyState !== WebSocket.CLOSED)
+          conn.send(JSON.stringify({'channel': channel, 'message': message}));
       };
+      conn.queue = [];
+      conn.enqueue = function(channel, message) {
+        if (typeof refreshRate === 'undefined')
+          conn.sendObj(channel,message);
+        else
+          conn.queue.push({'channel': channel, 'message': message});
+      }
+      
+      conn.sendQueue = function() {
+        conn.queue.forEach(function(msg) {
+          conn.sendObj(msg.channel, msg.message);
+        });
+        conn.queue.splice(0, conn.queue.length);
+      }
       conns.push(conn);
 
       Event.emit('open', conn);
@@ -89,7 +104,14 @@
         Event.emit('close', conn);
       });
     });
-
+    
+    if (typeof refreshRate !== 'undefined') {
+      setInterval(function() {
+        conns.forEach(function(conn) {
+          conn.sendQueue();
+        });
+      }, refreshRate);
+    }
     return Event;
   };
   
