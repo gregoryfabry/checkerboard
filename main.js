@@ -35,7 +35,6 @@
       var lastAttempt;
       conn.attempting = true;
       var someFailed = message.attempts.some(function(attempt) {
-        console.log(JSON.stringify(state.proxy), JSON.stringify(attempt));
         if (oneWayDiff(state.proxy, attempt.diff)) {
           lastAttempt = attempt.id;
           state.merge(attempt.patch);
