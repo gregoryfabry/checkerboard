@@ -38,14 +38,13 @@ module.exports.Server = function(port, inputState, opts) {
     conns.forEach(function(otherConn) {
       if (otherConn === conn)
         return;
-        
       var deltas = successes.filter(function(success) {
         for (var i = 0; i < otherConn.subs.length; i++)
           if (getByPath(success.delta, otherConn.subs[i]) !== null)
             return true;
       });
-      
-      otherConn.sendObj('update-state', {'deltas': deltas});
+      if (deltas.length > 0)
+        otherConn.sendObj('update-state', {'deltas': deltas});
     });
     console.timeEnd(1);
   });
@@ -121,9 +120,11 @@ function wrap(obj, path, root) {
     root = {};
 
   var c = typeof path === 'string' ? path.split('.') : path;
-  if (c.length === 1) {
+  if (c === "") {
+    return obj;
+  } else if (c.length === 1) {
     root[c[0]] = obj;
-    return;
+    return root;
   }
   
   root[c[0]] = {};

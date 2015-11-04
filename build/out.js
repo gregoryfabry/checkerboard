@@ -667,8 +667,6 @@ define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
   var isPOJS = diffpatch.isPOJS;
   var getByPath = diffpatch.getByPath;
   var wrap = diffpatch.wrap;
-
-  if (window) window.diffpatch = diffpatch;
   
   Object.prototype.addObserver = function(callback) {
     if (!('__stm' in this))
@@ -695,22 +693,41 @@ define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
     
     this.pending = [];
     this.queue = [];
+    
+    this.populated = false;
+    this.waitingForReturn = false;
  
     var that = this;
     this.ws.addEventListener('message', function(event) {
       var envelope = JSON.parse(event.data);
       switch(envelope.channel) {
         case 'attempt-returned':
-          var failures = [];
-          for (var i = 0; i < that.queue.length; i++)
-            if (envelope.message.successes.indexOf(that.queue[i].id) < 0)
-              failures.push(that.queue[i]);
+          for (var i = 0; i < that.pending.length; i++)
+            if (envelope.message.successes.indexOf(that.pending[i].id) > -1)
+              that.pending.splice(i, 1);
+            
+            var cur, saved = [];
+            while (typeof (cur = that.pending.pop()) !== 'undefined') {
+              if (this.populated)
+                patch(getByPath(that.store, cur.path), reverse(cur.delta));
+              saved.unshift(cur);
+            }
+            
+            prepareRecursive(that.store);
+                        
+            for (var i = 0; i < saved.length; i++)
+              that.sendAction(saved[i].path, saved[i].channel, saved[i].params);
+              
+            that.waitingForReturn = false;
+            that.sync();
           break;
         case 'set-state':
+          that.populated = true;
           that.store = prepareRecursive(that, envelope.message.data);
           break;
         case 'update-state':
-          
+          for (var i = 0; i < envelope.message.deltas.length; i++)
+            patch(that.store, envelope.message.deltas[i]);
           break;
       }
     });
@@ -751,8 +768,12 @@ define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
     
     this.actions[channel].onReceive.apply(comparand, params);
     var delta = diff(origin, comparand);
+    
+    if (typeof delta === 'undefined')
+      return;
+    
     patch(origin, delta);
-    prepareRecursive(origin);
+    prepareRecursive(this, origin);
     
     this.queue.push(new Attempt({'id': this.attemptID++, 'path': path, 'channel': channel, 'params': params, 'delta': delta}));
     this.sync();
@@ -785,10 +806,11 @@ define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
   
   // private functions
   function syncOp() {
+    if (this.waitingForReturn || this.queue.length === 0)
+      return;
+    this.waitingForReturn = true;
     this.send('attempt', {'attempts': this.queue});
-    var next;
-    while (typeof (next = this.queue.pop()) !== 'undefined')
-      this.pending.push(next);
+    this.pending.push.apply(this.pending, this.queue.splice(0, this.queue.length));
   }
   
   function prepareRecursive(stm, obj, path) {
