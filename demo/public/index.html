@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<script src="../../build/out.js"></script>
+<script>
+var stm, ws = new WebSocket('ws://localhost:9999');
+ws.addEventListener('open', function() {
+  stm = new checkerboard.STM(ws);
+   
+  stm.action('create-array')
+    .onReceive(function() {
+      if (typeof this.test === 'undefined')
+        this.test = [];
+    });
+    
+  stm.action('push-array')
+    .onReceive(function(num) {
+      this.test.push(num);
+    });
+  
+  setTimeout(function() {
+  debugger;
+    stm.store.sendAction('create-array');
+    stm.store.sendAction('push-array', 5);
+
+  }, 1000);
+});
+
+
+</script>

@@ -3,5 +3,5 @@
   if (typeof define !== 'undefined')
     define('checkerboard', stm);
   else
-    window.STM = stm;
+    window.checkerboard = stm;
 }());

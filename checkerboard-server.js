@@ -1,7 +1,8 @@
 var WebSocket = require('./node_modules/ws/index.js');
 var events = require('events');
 var util = require('util');
-var diffpatch = require('./public/lib/diffpatch.js'), diff = diffpatch.diff, patch = diffpatch.patch;
+var diffpatch = require('./src/diffpatch.js'), diff = diffpatch.diff, patch = diffpatch.patch;
+
 module.exports.Server = function(port, inputState, opts) {
   if (typeof opts === 'undefined')
     opts = {};
@@ -10,21 +11,15 @@ module.exports.Server = function(port, inputState, opts) {
   this.state = inputState || {};
   var _savedState = JSON.parse(JSON.stringify(this.state));
  
- 
   var conns = []; 
   var that = this;
-      
-  this.on('get', function(conn, message) {
-    var data = getByPath(this.state, message.path);
-    conn.sendObj('get-returned', {'data': getByPath(this.state, message.path), 'id': message.id});
+  
+  this.on('open', function(conn) {
+    conn.sendObj('set-state', {'data': this.state});
   });
   
   this.on('subscribe', function(conn, message) {
-      conn.subs[message.id] = message.path;
-  });
-  
-  this.on('unsubscribe', function(conn, message) {
-    delete conn.subs[message.id];
+    conn.subs.push(message.path);
   });
   
   this.on('attempt', function(conn, message) {
@@ -32,37 +27,31 @@ module.exports.Server = function(port, inputState, opts) {
     var curState = getByPath(that.state, message.path);
     var successes = message.attempts.filter(function(attempt) {
       if (patch(curState, attempt.delta)) {
-        attempt.delta = wrap(attempt.delta, message.path);
+        attempt.delta = wrap(attempt.delta, attempt.path);
         return true;
       }
       return false;
     });
     
-    conn.sendObj('attempt-returned', {'id': message.id, 'successes': successes.map(function(attempt) { return attempt.id; })});
-    var cache = {}, subdelta;
+    conn.sendObj('attempt-returned', {'id': message.id, 'successes': successes.map(function(success) { return success.id; })});
     
     conns.forEach(function(otherConn) {
-      Object.keys(otherConn.subs).forEach(function(id) {
-        if (otherConn === conn && otherConn.subs[id] === message.path)
-          return;
+      if (otherConn === conn)
+        return;
         
-        if (otherConn.subs[id] in cache)
-          subdelta = cache[otherConn.subs[id]];
-        else
-          subdelta = cache[otherConn.subs[id]] = successes.map(function(attempt) {
-            return getByPath(attempt.delta, otherConn.subs[id]);
-          }).filter(function(delta) { return delta != null; });
-  
-        if (subdelta.length > 0)
-          otherConn.enqueue('update-state', {'id': id, 'deltas': subdelta});
-          
+      var deltas = successes.filter(function(success) {
+        for (var i = 0; i < otherConn.subs.length; i++)
+          if (getByPath(success.delta, otherConn.subs[i]) !== null)
+            return true;
       });
+      
+      otherConn.sendObj('update-state', {'deltas': deltas});
     });
     console.timeEnd(1);
   });
 
   this.websocketServer.on('connection', function(conn) {
-    var wrapped = new ConnWrapper(conn, opts);
+    var wrapped = new ConnWrapper(conn);
     conns.push(wrapped);
 
     that.emit('open', wrapped);
@@ -79,44 +68,19 @@ module.exports.Server = function(port, inputState, opts) {
     });
   });
   
-  if (typeof opts.refreshRate !== 'undefined') {
-    setInterval(function() {
-      conns.forEach(function(conn) {
-        conn.sendQueue();
-      });
-    }, opts.refreshRate);
-  }
-  
   events.EventEmitter.call(this);
 }
 
 util.inherits(module.exports.Server, events.EventEmitter);
 
-function ConnWrapper(conn, opts) {
+function ConnWrapper(conn) {
   this.conn = conn;
-  this.queue = [];
-  this.subs = {};
-  this.opts = opts;
+  this.subs = [];
 }
 
 ConnWrapper.prototype.sendObj = function(channel, message) {
   if (this.conn.readyState !== WebSocket.CLOSING && this.conn.readyState !== WebSocket.CLOSED)
     this.conn.send(JSON.stringify({'channel': channel, 'message': message}));
-};
-
-ConnWrapper.prototype.enqueue = function(channel, message) {
-  if (typeof this.opts.refreshRate === 'undefined')
-    this.sendObj(channel, message);
-  else
-    this.queue.push({'channel': channel, 'message': message});
-};
-  
-ConnWrapper.prototype.sendQueue = function() {
-  var that = this;
-  this.queue.forEach(function(msg) {
-    that.sendObj(msg.channel, msg.message);
-  });
-  this.queue = [];
 };
 
 function isPOJS(prop) {

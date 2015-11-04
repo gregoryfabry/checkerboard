@@ -436,7 +436,7 @@ define("node_modules/almond/almond.js", function(){});
 
 
 
-define('diffpatch', ['exports'], function(exports) {
+define('diffpatch',['exports'], function(exports) {
   function diff(origin, comparand) {
     if (!isPOJS(origin) || !isPOJS(comparand))
       throw new Error('Attempting to diff a non-object');
@@ -560,180 +560,208 @@ define('diffpatch', ['exports'], function(exports) {
       obj !== null;
   }
   
+  function getByPath(obj, keyPath){ 
+ 
+    var keys, keyLen, i=0, key;
+    keys = keyPath && keyPath.split(".");
+    keyLen = keys && keys.length;
+ 
+    while(i < keyLen && obj){
+ 
+        key = keys[i];        
+        obj = (typeof obj.get == "function") 
+                    ? obj.get(key)
+                    : obj[key];                    
+        i++;
+    }
+ 
+    if(i < keyLen){
+        obj = null;
+    }
+ 
+    return obj;
+  }
+  
+  function wrap(obj, path, root) {
+    if (typeof root === 'undefined')
+      root = {};
+
+    var c = typeof path === 'string' ? path.split('.') : path;
+    if (c.length === 1) {
+      root[c[0]] = obj;
+      return;
+    }
+    
+    root[c[0]] = {};
+    wrap(obj, c.splice(1), root[c[0]]);
+    
+    return root;
+  };
+  
   exports.diff = diff;
   exports.patch = patch;
+  exports.isPOJS = isPOJS;
+  exports.getByPath = getByPath;
+  exports.wrap = wrap;
 });
 
 
-define('stm', ['exports', 'diffpatch'], function(exports, diffpatch) {
+
+define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
   var noop = function(){};
   
   var diff = diffpatch.diff;
   var patch = diffpatch.patch;
+  var isPOJS = diffpatch.isPOJS;
+  var getByPath = diffpatch.getByPath;
+  var wrap = diffpatch.wrap;
+  
+  Object.prototype.addObserver = function(callback) {
+    if (!('__stm' in this))
+      throw new Error('addObserver called on unprepared object');
+    this.__stm.addObserver(this.__path, callback);
+  };
+  
+  Object.prototype.sendAction = function(channel) {
+    if (!('__stm' in this))
+      throw new Error('sendAction called on unprepared object');
+    this.__stm.sendAction(this.__path, channel, Array.prototype.slice.call(arguments, 1));
+  }
     
-  function STM(ws, basePath) {
+  function STM(ws) {
     this.ws = ws;
-    this.basePath = basePath;
-    this.state = {};
-    this.getCallbacks = {};
-    this.subCallbacks = {};
-    this.attempts = [];
-    this.transactionIds = [];
-    this.childrenSubs = [];
-    this.toSync.push(this);
+    
+    this.actions = {};
+    this.store = prepareRecursive(this, {});
+    this.observers = {};
+    
+    this.attemptID = 0;
+    this.updateID = null;
+    this.syncInterval = null;
+    
+    this.pending = [];
+    this.queue = [];
+ 
     var that = this;
-    this.ws.addEventListener('message', this.eventListener = function(event) {
+    this.ws.addEventListener('message', function(event) {
       var envelope = JSON.parse(event.data);
       switch(envelope.channel) {
-        case 'get-returned':
-          if (envelope.message.id in that.getCallbacks) {
-            that.getCallbacks[envelope.message.id](envelope.message.data);
-            delete that.getCallbacks[envelope.message.id];
-          }
-          break;
         case 'attempt-returned':
-          if (that.transactionIds.indexOf(envelope.message.id) < 0)
-            return;
-          that.transactionIds.splice(that.transactionIds.indexOf(envelope.message.id), 1);
-          patch(that.state, envelope.message.delta);
-          that.attempts = that.attempts.filter(function(attempt) {
-            if (envelope.message.successes.indexOf(attempt.id) >= 0) {
-              patch(that.state, attempt.delta);
-              attempt.then(that.state);
-              return false;
-            } else {
-              return true;
-            }
-          });
-          that.waitingForReturn = false;
+          var failures = [];
+          for (var i = 0; i < that.queue.length; i++)
+            if (envelope.message.successes.indexOf(that.queue[i].id) < 0)
+              failures.push(that.queue[i]);
+          break;
+        case 'set-state':
+          that.store = prepareRecursive(that, envelope.message.data);
           break;
         case 'update-state':
-          if (envelope.message.id in that.subCallbacks) {
-            envelope.message.deltas.forEach(function(delta) {
-              patch(that.state, delta);
-            });
-            that.subCallbacks[envelope.message.id](that.state);
-          }
+          
           break;
       }
     });
   };
-
-  var transactionId = 0;
 
   STM.prototype.send = function(channel, message) {
     this.ws.send(JSON.stringify({'channel': channel, 'message': message}));
   };
-
-  STM.prototype.get = function(path, callback) {
-    if (typeof path === 'function') {
-      callback = path;
-      path = undefined;
-    }
+  
+  STM.prototype.action = function(name) {
+    this.actions[name] = {};
     
-    this.getCallbacks[++transactionId] = callback;
-    this.send('get', {'path': (this.basePath || '') + (typeof this.basePath === typeof path ? '.' : '') + (path || ''), 'id': transactionId});
-  };
-
-  STM.prototype.subscribe = function(path, callback, init) {
-    if (typeof path === 'function') {
-      callback = path;
-      init = callback;
-      path = undefined;
-    }
-    if (typeof callback === 'undefined')
-      callback = noop;
-    if (typeof init === 'undefined')
-      init = noop;
-    var toReturn = new STM(this.ws, (this.basePath || '') + (typeof this.basePath === typeof path ? '.' : '') + (path || ''));
-    toReturn.subCallbacks[++transactionId] = callback;
-    this.send('subscribe', {'path': toReturn.basePath, 'id': transactionId});
-    toReturn.get(function(data) {
-      toReturn.state = data;
-      init(toReturn.state);
-    });
-    
-    this.childrenSubs.push(toReturn);
-    
-    return toReturn;
+    var that = this;
+    return {
+      onReceive: function(callback) {
+        that.actions[name].onReceive = callback;
+      },
+      onRevert: function(callback) {
+        that.actions[name].onRevert = callback;
+      }
+    };
   };
   
-  STM.prototype.unsubscribe = function() {
-    this.childrenSubs.forEach(function(sub) {
-      sub.unsubscribe();
-    });
-    this.ws.removeEventListener('message', this.eventListener);
-    this.send('unsubscribe', {'id': Object.keys(this.subCallbacks)[0]});
-  };
-
-  STM.prototype.try = function(callback, then) {
-    if (typeof then === 'undefined')
-      then = noop;
-    this.attempts.push(new Attempt(callback, then));
+  STM.prototype.addObserver = function(path, callback) {
+    this.observers[path] = callback;
+    this.send('subscribe', {'path': path});
+  }
+  
+  STM.prototype.sendAction = function(path, channel, params) {  
+    if (!(channel in this.actions))
+      throw new Error("invalid action");
+   
+    var origin = getByPath(this.store, path); 
+    if (origin === null)
+      throw new Error("invalid path");
+    
+    var comparand = JSON.parse(JSON.stringify(origin));
+    
+    this.actions[channel].onReceive.apply(comparand, params);
+    var delta = diff(origin, comparand);
+    patch(origin, delta);
+    prepareRecursive(origin);
+    
+    this.queue.push(new Attempt({'id': this.attemptID++, 'path': path, 'channel': channel, 'params': params, 'delta': delta}));
     this.sync();
   };
   
-  function Attempt(callback, then) {
-    this.callback = callback;
-    this.then = then;
+  function Attempt(params) {
+    var props = Object.keys(params);
+    for (var i = 0; i < props.length; i++)
+      this[props[i]] = params[props[i]];
   };
   
   Attempt.prototype.toJSON = function() {
-    return {'id': this.id, 'delta': this.delta};
-  };
-  
-  STM.prototype.toSync = [];
-  var syncInterval = null;
-  var op = function(that) {    
-    that.toSync.forEach(function(toSync) {
-      if (typeof toSync === 'undefined' || toSync.attempts.length === 0 || toSync.transactionIds.length > 0)
-        return;
-                        
-      var origin = JSON.parse(JSON.stringify(toSync.state));
-      var comparand = JSON.parse(JSON.stringify(toSync.state));
-      var tmp = [];
-      var attempts = [];
-      for (var i = 0; i < toSync.attempts.length; i++)
-        attempts[i] = toSync.attempts[i];
-
-     for (var i = 0; i < attempts.length; i++) {
-        attempts[i].callback(comparand);
-        var a = attempts[i];
-        var result = diff(origin, comparand);
-
-        if (typeof result === 'undefined')
-          a.then(comparand);
-        else {
-          a.delta = result;
-          a.id = ++transactionId;
-          patch(origin, result);
-          patch(that.state, result);
-          tmp.push(a);
-        }
-      }
-
-      toSync.attempts = tmp;
-      if (toSync.attempts.length > 0) {
-        toSync.waitingForReturn = true;
-        toSync.send('attempt', {id: ++transactionId, path: toSync.basePath, attempts: toSync.attempts});
-        toSync.transactionIds.push(transactionId);
-      }
-    });
+    return {'id': this.id, 'path': this.path, 'delta': this.delta};
   };
   
   STM.prototype.sync = function(interval) {    
-    if (typeof interval === 'undefined' && syncInterval === null)
-      op(this);
-    else if (typeof interval === null && syncInterval !== null) {
-      clearInterval(syncInterval);
+    if (typeof interval === 'undefined' && this.syncInterval === null)
+      syncOp.call(this);
+    else if (typeof interval === null && this.syncInterval !== null) {
+      clearInterval(this.syncInterval);
       syncInterval = null;
     }
     else if (typeof interval !== 'undefined') {
-      if (syncInterval !== null)
-        clearInterval(syncInterval);
+      if (this.syncInterval !== null)
+        clearInterval(this.syncInterval);
       
-      syncInterval = setInterval(op.bind(this, this), interval);
+      this.syncInterval = setInterval(syncOp.bind(this), interval);
     }
+  };
+  
+  // private functions
+  function syncOp() {
+    this.send('attempt', {'attempts': this.queue});
+    var next;
+    while (typeof (next = this.queue.pop()) !== 'undefined')
+      this.pending.push(next);
+  }
+  
+  function prepareRecursive(stm, obj, path) {
+    if (typeof path === 'undefined')
+      path = [];
+      
+    if (isPOJS(obj)) {
+      var props = Object.keys(obj);
+      if (!obj.hasOwnProperty('__path')) {
+        Object.defineProperties(obj, {
+          '__path': {
+            value: path.join("."),
+          },
+          '__stm': {
+            value: stm
+          }
+        });
+      }
+      for (var i = 0; i < props.length; i++) {
+        path.push(props[i]);
+        if (props[i] != '__path' && props[i] != '__stm')
+          prepareRecursive(stm, obj[props[i]], path);
+        path.pop();
+      }
+    }
+    
+    return obj;
   }
 
   exports.STM = STM;
@@ -743,5 +771,5 @@ define('stm', ['exports', 'diffpatch'], function(exports, diffpatch) {
   if (typeof define !== 'undefined')
     define('checkerboard', stm);
   else
-    window.STM = stm;
+    window.checkerboard = stm;
 }());

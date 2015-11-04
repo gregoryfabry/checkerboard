@@ -1,6 +1,6 @@
 if (typeof define !== 'function') { var define = require('amdefine')(module) }
 
-define('diffpatch', ['exports'], function(exports) {
+define(['exports'], function(exports) {
   function diff(origin, comparand) {
     if (!isPOJS(origin) || !isPOJS(comparand))
       throw new Error('Attempting to diff a non-object');
@@ -124,6 +124,47 @@ define('diffpatch', ['exports'], function(exports) {
       obj !== null;
   }
   
+  function getByPath(obj, keyPath){ 
+ 
+    var keys, keyLen, i=0, key;
+    keys = keyPath && keyPath.split(".");
+    keyLen = keys && keys.length;
+ 
+    while(i < keyLen && obj){
+ 
+        key = keys[i];        
+        obj = (typeof obj.get == "function") 
+                    ? obj.get(key)
+                    : obj[key];                    
+        i++;
+    }
+ 
+    if(i < keyLen){
+        obj = null;
+    }
+ 
+    return obj;
+  }
+  
+  function wrap(obj, path, root) {
+    if (typeof root === 'undefined')
+      root = {};
+
+    var c = typeof path === 'string' ? path.split('.') : path;
+    if (c.length === 1) {
+      root[c[0]] = obj;
+      return;
+    }
+    
+    root[c[0]] = {};
+    wrap(obj, c.splice(1), root[c[0]]);
+    
+    return root;
+  };
+  
   exports.diff = diff;
   exports.patch = patch;
+  exports.isPOJS = isPOJS;
+  exports.getByPath = getByPath;
+  exports.wrap = wrap;
 });
