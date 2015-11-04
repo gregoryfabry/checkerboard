@@ -465,7 +465,7 @@ define('diffpatch',['exports'], function(exports) {
         delta[props[i]] = [1, 2, null, origin[props[i]]]; //{_op: 'su', osu: origin[props[i]]};
       else if (!fPropInOrigin && fPropInComparand && fUndefinedInComparand)
         delta[props[i]] = [0, 2];
-      else if (!fPropInOrigin && fPropInComparand )
+      else if (!fPropInOrigin && fPropInComparand)
         delta[props[i]] = [0, 0, comparand[props[i]]]; //{_op: 's', ns: comparand[props[i]]};
       else if (fPropInOrigin && !fPropInComparand)
         delta[props[i]] = [2, 0, null, origin[props[i]]]; //{_op: 'd', od: origin[props[i]]}
@@ -479,6 +479,56 @@ define('diffpatch',['exports'], function(exports) {
 
     if (Object.keys(delta).length > 0)
       return delta;
+  }
+  
+  function reverse(delta) {
+    var toReturn = {};
+    for (var prop in delta) {
+      if (!delta.hasOwnProperty(prop))
+        continue;
+      if (!(delta[prop] instanceof Array))
+        toReturn[prop] = reverse(delta[prop]);
+      else {
+        toReturn[prop] = [];
+        switch(delta[prop][0]) {
+          case 0: // set
+            toReturn[prop][0] = 2; // delete
+            if (delta[prop][1] == 2) // set undefined
+              toReturn[prop][1] = 1;
+            else {
+              toReturn[prop][1] = 0;
+              toReturn[prop][2] = null;
+              toReturn[prop][3] = delta[prop][2];
+            }
+            break;
+          case 1:
+            toReturn[prop][0] = 1;
+            if (delta[prop][1] === 0) {
+              toReturn[prop][1] = 0;
+              toReturn[prop][2] = delta[prop][3];
+              toReturn[prop][3] = delta[prop][2];
+            } else if (delta[prop][1] === 1) {
+              toReturn[prop][1] = 2;
+              toReturn[prop][2] = null
+              toReturn[prop][3] = delta[prop][2];
+            } else {
+              toReturn[prop][1] = 1;
+              toReturn[prop][2] = delta[prop][3];
+            }
+            break;
+          case 2:
+            toReturn[prop][0] = 0;
+            if (delta[prop][1] === 0) {
+              toReturn[prop][1] = 0;
+              toReturn[prop][2] = delta[prop][3];
+            } else {
+              toReturn[prop][1] = 2;
+            }
+            break;
+        }
+      }
+    }
+    return toReturn;
   }
 
   function patch(target, delta, checked) {
@@ -499,7 +549,7 @@ define('diffpatch',['exports'], function(exports) {
       else {
         switch(delta[prop][0]) {
           case 0:  
-          case 1:  target[prop] = delta[prop][1] !== 1 ? delta[prop][2] : undefined;   break;
+          case 1:  target[prop] = delta[prop][1] !== 2 ? delta[prop][2] : undefined;   break;
           case 2:
             if (target instanceof Array)
               target.splice(prop, 1)
@@ -600,6 +650,7 @@ define('diffpatch',['exports'], function(exports) {
   
   exports.diff = diff;
   exports.patch = patch;
+  exports.reverse = reverse;
   exports.isPOJS = isPOJS;
   exports.getByPath = getByPath;
   exports.wrap = wrap;
@@ -612,9 +663,12 @@ define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
   
   var diff = diffpatch.diff;
   var patch = diffpatch.patch;
+  var reverse = diffpatch.reverse;
   var isPOJS = diffpatch.isPOJS;
   var getByPath = diffpatch.getByPath;
   var wrap = diffpatch.wrap;
+
+  if (window) window.diffpatch = diffpatch;
   
   Object.prototype.addObserver = function(callback) {
     if (!('__stm' in this))

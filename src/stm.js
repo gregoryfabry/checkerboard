@@ -5,9 +5,12 @@ define(['exports', 'diffpatch'], function(exports, diffpatch) {
   
   var diff = diffpatch.diff;
   var patch = diffpatch.patch;
+  var reverse = diffpatch.reverse;
   var isPOJS = diffpatch.isPOJS;
   var getByPath = diffpatch.getByPath;
   var wrap = diffpatch.wrap;
+
+  if (window) window.diffpatch = diffpatch;
   
   Object.prototype.addObserver = function(callback) {
     if (!('__stm' in this))
