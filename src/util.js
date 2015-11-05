@@ -50,11 +50,12 @@ define(['exports'], function(exports) {
     a = a.split('.');
     b = b.split('.');
     
-    for (var i = 0; i < a.length; i++)
+    var i;
+    for (i = 0; i < a.length; i++)
       if (a[i] !== b[i] || i >= b.length)
-        return false;
+        return -1;
         
-    return true;
+    return b.length - i;
   }
   
   exports.isPOJS = isPOJS;

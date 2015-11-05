@@ -9,18 +9,22 @@ ws.addEventListener('open', function() {
    
   stm.action('create-array')
     .onReceive(function() {
-      if (typeof this.test === 'undefined')
-        this.test = [];
+      if (typeof this.a === 'undefined')
+        this.a = [];
     });
     
   stm.action('push-to-array')
     .onReceive(function(num) {
-      this.push(num);
+      this.a.push(num);
     });
       
   stm.store.sendAction('create-array');
-//  stm.store.addObserver(function(){});
-  stm.store.test.sendAction('push-to-array', 5);
+  stm.store.a.addObserver(function(comparand, origin){
+    if (comparand.length - origin.length > 0)
+      console.log("Added " + (comparand.length - origin.length) + " elements: [" + comparand.slice(origin.length, comparand.length + "]"));
+  });
+  window.store = stm.store;
+  stm.store.sendAction('push-to-array', 0);
 
 });
 

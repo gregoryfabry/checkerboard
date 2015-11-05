@@ -19,7 +19,7 @@ module.exports.Server = function(port, inputState, opts) {
   });
   
   this.on('subscribe', function(conn, message) {
-    conn.subs.push(message.path);
+    conn.subs.push({'path': message.path, 'depth': message.depth});
   });
   
   this.on('attempt', function(conn, message) {
@@ -35,7 +35,7 @@ module.exports.Server = function(port, inputState, opts) {
         
       var deltas = successes.filter(function(success) {
         for (var i = 0; i < otherConn.subs.length; i++) {
-          if (getByPath(wrap(success.delta, success.path), otherConn.subs[i]) !== null)
+          if (getByPath(wrap(success.delta, success.path), otherConn.subs[i].path) !== null)
             return true;
           }
       });

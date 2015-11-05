@@ -15,6 +15,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "build": "node node_modules/requirejs/bin/r.js -o build.js"
+    "build": "node node_modules/requirejs/bin/r.js -o build.js",
+    "build-continuous": "nodemon node_modules/requirejs/bin/r.js -o build.js -C -w src"
   }
 }

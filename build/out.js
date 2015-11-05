@@ -486,11 +486,12 @@ define('util',['exports'], function(exports) {
     a = a.split('.');
     b = b.split('.');
     
-    for (var i = 0; i < a.length; i++)
+    var i;
+    for (i = 0; i < a.length; i++)
       if (a[i] !== b[i] || i >= b.length)
-        return false;
+        return -1;
         
-    return true;
+    return b.length - i;
   }
   
   exports.isPOJS = isPOJS;
@@ -681,11 +682,12 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
   var isPOJS = util.isPOJS;
   var getByPath = util.getByPath;
   var wrap = util.wrap;
+  var isChild = util.isChild;
   
-  Object.prototype.addObserver = function(callback) {
+  Object.prototype.addObserver = function(callback, depth) {
     if (!('__stm' in this))
       throw new Error('addObserver called on unprepared object');
-    this.__stm.addObserver(this.__path, callback);
+    this.__stm.addObserver(this.__path, callback, depth);
   };
   
   Object.prototype.sendAction = function(channel) {
@@ -742,7 +744,18 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
           break;
         case 'update-state':
           for (var i = 0; i < envelope.message.deltas.length; i++) {
+            var observers = Object.keys(this.observers), origin = [];
+            for (var j = 0; j < observers.length; j++) {
+              if (getByPath(wrap(envelope.message.deltas[i].delta, envelope.message.deltas[i].path), observers[i]) !== null) {
+                origin[i] = JSON.parse(JSON.stringify(getByPath(this.store, observers[i])));
+              }
+            }
             patch(getByPath(this.store, envelope.message.deltas[i].path), envelope.message.deltas[i].delta);
+            for (var i = 0; i < origin.length; i++)
+              if (typeof origin[i] !== 'undefined')
+                for (var j = 0; j < this.observers[observers[i]].length; j++) {
+                  this.observers[observers[i]][j].callback(getByPath(this.store, observers[i]), origin[i]);
+                }
           }
           break;
       }
@@ -766,9 +779,12 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
     };
   };
   
-  STM.prototype.addObserver = function(path, callback) {
-    this.observers[path] = callback;
-    this.send('subscribe', {'path': path});
+  STM.prototype.addObserver = function(path, callback, depth) {
+    if (typeof this.observers[path] === 'undefined')
+      this.observers[path] = [];
+      
+    this.observers[path].push({'callback': callback, 'depth': depth});
+    this.send('subscribe', {'path': path, 'depth': depth});
   }
   
   STM.prototype.sendAction = function(path, channel, params) {
