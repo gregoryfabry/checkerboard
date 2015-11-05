@@ -1,8 +1,6 @@
 if (typeof define !== 'function') { var define = require('amdefine')(module) }
 
 define(['exports', 'util'], function(exports, util) {
-  var isPOJS = util.isPOJS;
-  
   function diff(origin, comparand) {
     if (!isPOJS(origin) || !isPOJS(comparand))
       throw new Error('Attempting to diff a non-object');
@@ -106,8 +104,9 @@ define(['exports', 'util'], function(exports, util) {
       delta = {0: delta};
     }
     
-    if (typeof checked === 'undefined' && !check(target, delta))
+    if (typeof checked === 'undefined' && !check(target, delta)) {
       return false;
+    }
       
     Object.keys(delta).forEach(function(prop) {
       if (!(delta[prop] instanceof Array))
@@ -163,6 +162,16 @@ define(['exports', 'util'], function(exports, util) {
     }
     
     return true;
+  }
+  
+  function isPOJS(obj) {
+    return !(
+      obj instanceof Date ||
+      obj instanceof RegExp ||
+      obj instanceof String ||
+      obj instanceof Number) &&
+      typeof obj === 'object' &&
+      obj !== null;
   }
   
   exports.diff = diff;

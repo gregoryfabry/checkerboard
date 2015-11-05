@@ -50,15 +50,30 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
           console.time('attempt-returned');
           for (var i = 0; i < this.pending.length; i++)
             if (envelope.message.successes.indexOf(this.pending[i].id) > -1)
-              this.pending.splice(i, 1);
+              this.pending.splice(i--, 1);
             
           var cur, saved = [];
-          while (typeof (cur = this.queue.pop()) !== 'undefined' || typeof (cur = this.pending.pop()) !== 'undefined')
+          while (typeof (cur = this.queue.pop()) !== 'undefined') {
             saved.unshift(cur);
-          
-          for (var p in envelope.message.fixes)
-            patch(getByPath(this.store, p), envelope.message.fixes[p]);
-          
+            this.actions[cur.channel].onRevert.apply(getByPath(this.store, cur.path), cur.params);
+          }
+          while (typeof (cur = this.pending.pop()) !== 'undefined') {
+            saved.unshift(cur);
+            this.actions[cur.channel].onRevert.apply(getByPath(this.store, cur.path), cur.params);
+          }
+   
+          for (var p in envelope.message.fixes) {
+            if (!envelope.message.fixes.hasOwnProperty(p))
+              continue;
+            if (p === '')
+              this.store = envelope.message.fixes[p];
+            else {
+              var components = p.split('.');
+              var root = getByPath(this.store, components.slice(0, components.length - 1).join('.'));
+              root[components[components.length - 1]] = envelope.message.fixes[p]
+            }
+          }
+           
           prepareRecursive(this, this.store);
                       
           for (var i = 0; i < saved.length; i++)
@@ -84,14 +99,16 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
   };
   
   STM.prototype.action = function(name) {
-    var action = this.actions[name] = {};
+    var action = this.actions[name] = {'onReceive': noop, 'onRevert': noop};
     
     return {
       onReceive: function(callback) {
         action.onReceive = callback;
+        return this;
       },
       onRevert: function(callback) {
         action.onRevert = callback;
+        return this;
       }
     };
   };

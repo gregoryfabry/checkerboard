@@ -1,69 +1,105 @@
 <!doctype html>
 <html>
 <head>
+<style>
+.panel {width: 20%; margin: 20px; background-color: lightgray; border: 1px solid gray; border-radius: 5px}
+</style>
 <script src="../../build/out.js"></script>
 <script>
 
+  var startingBalance = 100;
+
   function ATM() {
+    this.initialized = true;
     this.onInitialize = function() {};
     this.onUpdate = function(){};
+    this.pocket = 0;
+    var that = this;
     
     this.stm = new checkerboard.STM('ws://localhost:9999');
     this.stm.action('create-account')
       .onReceive(function() {
         if (typeof this.account === 'undefined')
-          this.account = {'balance': 100};
+          this.account = {'balance': startingBalance};
       });
-      
+    
     this.stm.action('deposit')
       .onReceive(function(amount) {
-        this.account.balance += amount;
+        if (that.pocket >= amount) {
+          this.account.balance += amount;
+          that.pocket -= amount;
+        }
+      })
+      .onRevert(function(amount) {
+        that.pocket += amount;
+        updatePocketBalance();
       });
       
       
-    this.stm.action('withdrawal')
+    this.stm.action('withdraw')
       .onReceive(function(amount) {
-        this.account.balance -= amount;
+        if (this.account.balance - amount >= 0) {
+          this.account.balance -= amount;
+          that.pocket += amount;
+        }
+      })
+      .onRevert(function(amount) {
+        that.pocket -= amount;
+        updatePocketBalance();
       });
       
-    var that = this;
-    this.stm.init(function(store) {
-      store.sendAction('create-account');
-      store.account.addObserver(function(newValue, oldValue) {
-        this.onUpdate(newValue.balance);
-      });
-      
-      that.deposit = function(amount) {
-        store.sendAction('deposit', amount);
-      }
-      
-      that.withdrawal = function(amount) {
-        store.sendAction('withdrawal', amount);
-      }
-      
-      that.onInitialize();
-    });
-  }
-  
-  function Bank() {
-    this.onInitialize = function() {};
-    this.onUpdate = function(){};
-    
-    this.stm = new checkerboard.STM('ws://localhost:9999');
-    
-    this.stm.action('create-account')
-      .onReceive(function() {
-        if (typeof this.account === 'undefined')
-          this.account = {'balance': 100};
-      });
-    
-    var that = this;
     this.stm.init(function(store) {
       store.sendAction('create-account');
       store.account.addObserver(function(newValue, oldValue) {
         that.onUpdate(newValue.balance);
       });
+      that.onUpdate(store.account.balance);
       
+      that.deposit = function(amount) {
+        store.sendAction('deposit', amount);
+      }
+      
+      that.withdraw = function(amount) {
+        store.sendAction('withdraw', amount);
+      }
+      
+      that.initialized = true;
+      that.onInitialize();
+    });
+  }
+  
+  function Bank() {
+    this.initialized = true;
+    this.onInitialize = function() {};
+    this.onUpdate = function(){};
+    
+    this.stm = new checkerboard.STM('ws://localhost:9999');
+    
+    this.stm.action('create-account')
+      .onReceive(function() {
+        if (typeof this.account === 'undefined')
+          this.account = {'balance': startingBalance};
+      });
+      
+    this.stm.action('reset-balance')
+      .onReceive(function() {
+        this.account.balance = startingBalance;
+      });
+    
+    var that = this;
+    this.stm.init(function(store) {
+      store.sendAction('create-account');
+      
+      store.account.addObserver(function(newValue, oldValue) {
+        that.onUpdate(newValue.balance);
+      });
+      that.onUpdate(store.account.balance);
+      
+      that.resetBalance = function() {
+        store.sendAction('reset-balance');
+      };
+      
+      that.initialized = true;
       that.onInitialize();
     });
   }
@@ -71,11 +107,66 @@
   var atm1 = new ATM();
   var atm2 = new ATM();
   var bank = new Bank();
+  var pocket1 = 0;
+  var pocket2 = 0;
+  
+  atm1.onUpdate = function(value) {
+    document.getElementById('atm1-balance').innerHTML = value;
+    updatePocketBalance();
+  }
+  
+  atm2.onUpdate = function(value) {
+    document.getElementById('atm2-balance').innerHTML = value;
+    updatePocketBalance();
+  }
+  
+  bank.onUpdate = function(value) {
+    document.getElementById('bank-balance').innerHTML = value;
+  }
+  
+  
+  function updatePocketBalance() {
+    document.getElementById('pocket1-balance').innerHTML = atm1.pocket;
+    document.getElementById('pocket2-balance').innerHTML = atm2.pocket;
+  }
+  
+  window.onload = function(){
+    updatePocketBalance();
+    document.getElementById('sync-delay').value = 5000;
+    updateSync(5000);
+  }
+  
+  function updateSync(time) {
+    atm1.stm.sync(time);
+    atm2.stm.sync(time);
+    bank.stm.sync(time);
+    document.getElementById('sync-display').innerHTML = time + 'ms';
+  }
+  
+  
 </script>
 </head>
 <body>
 <div class="panel">
-
+<h3>Maximum delay: <span id="sync-display"></span></h3>
+<input id="sync-delay" type="range" min="5" max="10000" step="100" onchange="updateSync(this.value)"></input>
+</div>
+<div class="panel">
+<h1>Bank</h1>
+Balance: <span id="bank-balance">[uninitialized]</span><br />
+<button onclick="bank.resetBalance(); atm1.pocket = 0; atm2.pocket = 0; updatePocketBalance();">Restore balance</button>
+</div>
+<div class="panel">
+<h1>ATM 1</h1>
+Current bank balance: <span id="atm1-balance">[uninitialized]</span><br />
+<button onclick="atm1.deposit(20);">Deposit</button><button onclick="atm1.withdraw(20);">Withdrawal</button></br>
+Your pocket: <span id="pocket1-balance">[uninitialized]</span>
+</div>
+<div class="panel">
+<h1>ATM 2</h1>
+Current bank balance: <span id="atm2-balance">[uninitialized]</span><br />
+<button onclick="atm2.deposit(20);">Deposit</button><button onclick="atm2.withdraw(20);">Withdrawal</button></br>
+Your pocket: <span id="pocket2-balance">[uninitialized]</span>
 </div>
 
 </body>
