@@ -436,7 +436,73 @@ define("node_modules/almond/almond.js", function(){});
 
 
 
-define('diffpatch',['exports'], function(exports) {
+define('util',['exports'], function(exports) {
+  function isPOJS(obj) {
+    return !(
+      obj instanceof Date ||
+      obj instanceof RegExp ||
+      obj instanceof String ||
+      obj instanceof Number) &&
+      typeof obj === 'object' &&
+      obj !== null;
+  }
+  
+  function getByPath(obj, path) {
+    if (path === "")
+      return obj;
+  
+    var keys = path.split('.');
+    
+    for (var i = 0; i < keys.length && obj; i++)
+        obj = obj[keys[i]];
+        
+    return i >= keys.length ? obj : null;
+  }
+  
+  function wrap(obj, path, root) {
+    if (path === "")
+      return obj;
+    
+    if (typeof root === 'undefined')
+      root = {};
+
+    var c = typeof path === 'string' ? path.split('.') : path;
+    if (c.length === 1) {
+      root[c[0]] = obj;
+      return root;
+    }
+    
+    root[c[0]] = {};
+    wrap(obj, c.splice(1), root[c[0]]);
+    
+    return root;
+  }
+  
+  // is b a subdir of or equiv to a?
+  function isChild(a, b) {
+    if (a === "")
+      return true;
+      
+    a = a.split('.');
+    b = b.split('.');
+    
+    for (var i = 0; i < a.length; i++)
+      if (a[i] !== b[i] || i >= b.length)
+        return false;
+        
+    return true;
+  }
+  
+  exports.isPOJS = isPOJS;
+  exports.getByPath = getByPath;
+  exports.wrap = wrap;
+  exports.isChild = isChild;
+});
+
+
+define('diffpatch',['exports', 'util'], function(exports, util) {
+  var isPOJS = util.isPOJS;
+  
   function diff(origin, comparand) {
     if (!isPOJS(origin) || !isPOJS(comparand))
       throw new Error('Attempting to diff a non-object');
@@ -599,74 +665,22 @@ define('diffpatch',['exports'], function(exports) {
     return true;
   }
   
-  
-  function isPOJS(obj) {
-    return !(
-      obj instanceof Date ||
-      obj instanceof RegExp ||
-      obj instanceof String ||
-      obj instanceof Number) &&
-      typeof obj === 'object' &&
-      obj !== null;
-  }
-  
-  function getByPath(obj, keyPath){ 
- 
-    var keys, keyLen, i=0, key;
-    keys = keyPath && keyPath.split(".");
-    keyLen = keys && keys.length;
- 
-    while(i < keyLen && obj){
- 
-        key = keys[i];        
-        obj = (typeof obj.get == "function") 
-                    ? obj.get(key)
-                    : obj[key];                    
-        i++;
-    }
- 
-    if(i < keyLen){
-        obj = null;
-    }
- 
-    return obj;
-  }
-  
-  function wrap(obj, path, root) {
-    if (typeof root === 'undefined')
-      root = {};
-
-    var c = typeof path === 'string' ? path.split('.') : path;
-    if (c.length === 1) {
-      root[c[0]] = obj;
-      return;
-    }
-    
-    root[c[0]] = {};
-    wrap(obj, c.splice(1), root[c[0]]);
-    
-    return root;
-  };
-  
   exports.diff = diff;
   exports.patch = patch;
   exports.reverse = reverse;
-  exports.isPOJS = isPOJS;
-  exports.getByPath = getByPath;
-  exports.wrap = wrap;
 });
 
 
 
-define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
+define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
   var noop = function(){};
   
   var diff = diffpatch.diff;
   var patch = diffpatch.patch;
   var reverse = diffpatch.reverse;
-  var isPOJS = diffpatch.isPOJS;
-  var getByPath = diffpatch.getByPath;
-  var wrap = diffpatch.wrap;
+  var isPOJS = util.isPOJS;
+  var getByPath = util.getByPath;
+  var wrap = util.wrap;
   
   Object.prototype.addObserver = function(callback) {
     if (!('__stm' in this))
@@ -697,40 +711,42 @@ define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
     this.populated = false;
     this.waitingForReturn = false;
  
-    var that = this;
-    this.ws.addEventListener('message', function(event) {
+    this.ws.addEventListener('message', (function(event) {
       var envelope = JSON.parse(event.data);
       switch(envelope.channel) {
         case 'attempt-returned':
-          for (var i = 0; i < that.pending.length; i++)
-            if (envelope.message.successes.indexOf(that.pending[i].id) > -1)
-              that.pending.splice(i, 1);
+          for (var i = 0; i < this.pending.length; i++)
+            if (envelope.message.successes.indexOf(this.pending[i].id) > -1)
+              this.pending.splice(i, 1);
             
-            var cur, saved = [];
-            while (typeof (cur = that.pending.pop()) !== 'undefined') {
-              if (this.populated)
-                patch(getByPath(that.store, cur.path), reverse(cur.delta));
-              saved.unshift(cur);
-            }
+          var cur, saved = [];
+          while (typeof (cur = this.queue.pop()) !== 'undefined' || typeof (cur = this.pending.pop()) !== 'undefined') {
+            patch(getByPath(this.store, cur.path), reverse(cur.delta));
+            saved.unshift(cur);
+          }
+          
+          prepareRecursive(this, this.store);
+                      
+          for (var i = 0; i < saved.length; i++)
+            this.sendAction(saved[i].path, saved[i].channel, saved[i].params);
             
-            prepareRecursive(that.store);
-                        
-            for (var i = 0; i < saved.length; i++)
-              that.sendAction(saved[i].path, saved[i].channel, saved[i].params);
-              
-            that.waitingForReturn = false;
-            that.sync();
+          this.waitingForReturn = false;
+          this.sync();
           break;
         case 'set-state':
-          that.populated = true;
-          that.store = prepareRecursive(that, envelope.message.data);
+          this.populated = true;
+          this.store = prepareRecursive(this, envelope.message.data);
+          var saved = this.queue.splice(0, this.queue.length);
+          for (var i = 0; i < saved.length; i++)
+            this.sendAction(saved[i].path, saved[i].channel, saved[i].params);
           break;
         case 'update-state':
-          for (var i = 0; i < envelope.message.deltas.length; i++)
-            patch(that.store, envelope.message.deltas[i]);
+          for (var i = 0; i < envelope.message.deltas.length; i++) {
+            patch(getByPath(this.store, envelope.message.deltas[i].path), envelope.message.deltas[i].delta);
+          }
           break;
       }
-    });
+    }).bind(this));
   };
 
   STM.prototype.send = function(channel, message) {
@@ -738,15 +754,14 @@ define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
   };
   
   STM.prototype.action = function(name) {
-    this.actions[name] = {};
+    var action = this.actions[name] = {};
     
-    var that = this;
     return {
       onReceive: function(callback) {
-        that.actions[name].onReceive = callback;
+        action.onReceive = callback;
       },
       onRevert: function(callback) {
-        that.actions[name].onRevert = callback;
+        action.onRevert = callback;
       }
     };
   };
@@ -756,7 +771,7 @@ define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
     this.send('subscribe', {'path': path});
   }
   
-  STM.prototype.sendAction = function(path, channel, params) {  
+  STM.prototype.sendAction = function(path, channel, params) {
     if (!(channel in this.actions))
       throw new Error("invalid action");
    
@@ -806,7 +821,7 @@ define('stm',['exports', 'diffpatch'], function(exports, diffpatch) {
   
   // private functions
   function syncOp() {
-    if (this.waitingForReturn || this.queue.length === 0)
+    if (this.waitingForReturn || this.queue.length === 0 || !this.populated)
       return;
     this.waitingForReturn = true;
     this.send('attempt', {'attempts': this.queue});

@@ -1,14 +1,14 @@
 if (typeof define !== 'function') { var define = require('amdefine')(module) }
 
-define(['exports', 'diffpatch'], function(exports, diffpatch) {
+define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
   var noop = function(){};
   
   var diff = diffpatch.diff;
   var patch = diffpatch.patch;
   var reverse = diffpatch.reverse;
-  var isPOJS = diffpatch.isPOJS;
-  var getByPath = diffpatch.getByPath;
-  var wrap = diffpatch.wrap;
+  var isPOJS = util.isPOJS;
+  var getByPath = util.getByPath;
+  var wrap = util.wrap;
   
   Object.prototype.addObserver = function(callback) {
     if (!('__stm' in this))
@@ -39,40 +39,42 @@ define(['exports', 'diffpatch'], function(exports, diffpatch) {
     this.populated = false;
     this.waitingForReturn = false;
  
-    var that = this;
-    this.ws.addEventListener('message', function(event) {
+    this.ws.addEventListener('message', (function(event) {
       var envelope = JSON.parse(event.data);
       switch(envelope.channel) {
         case 'attempt-returned':
-          for (var i = 0; i < that.pending.length; i++)
-            if (envelope.message.successes.indexOf(that.pending[i].id) > -1)
-              that.pending.splice(i, 1);
+          for (var i = 0; i < this.pending.length; i++)
+            if (envelope.message.successes.indexOf(this.pending[i].id) > -1)
+              this.pending.splice(i, 1);
             
-            var cur, saved = [];
-            while (typeof (cur = that.pending.pop()) !== 'undefined') {
-              if (this.populated)
-                patch(getByPath(that.store, cur.path), reverse(cur.delta));
-              saved.unshift(cur);
-            }
+          var cur, saved = [];
+          while (typeof (cur = this.queue.pop()) !== 'undefined' || typeof (cur = this.pending.pop()) !== 'undefined') {
+            patch(getByPath(this.store, cur.path), reverse(cur.delta));
+            saved.unshift(cur);
+          }
+          
+          prepareRecursive(this, this.store);
+                      
+          for (var i = 0; i < saved.length; i++)
+            this.sendAction(saved[i].path, saved[i].channel, saved[i].params);
             
-            prepareRecursive(that.store);
-                        
-            for (var i = 0; i < saved.length; i++)
-              that.sendAction(saved[i].path, saved[i].channel, saved[i].params);
-              
-            that.waitingForReturn = false;
-            that.sync();
+          this.waitingForReturn = false;
+          this.sync();
           break;
         case 'set-state':
-          that.populated = true;
-          that.store = prepareRecursive(that, envelope.message.data);
+          this.populated = true;
+          this.store = prepareRecursive(this, envelope.message.data);
+          var saved = this.queue.splice(0, this.queue.length);
+          for (var i = 0; i < saved.length; i++)
+            this.sendAction(saved[i].path, saved[i].channel, saved[i].params);
           break;
         case 'update-state':
-          for (var i = 0; i < envelope.message.deltas.length; i++)
-            patch(that.store, envelope.message.deltas[i]);
+          for (var i = 0; i < envelope.message.deltas.length; i++) {
+            patch(getByPath(this.store, envelope.message.deltas[i].path), envelope.message.deltas[i].delta);
+          }
           break;
       }
-    });
+    }).bind(this));
   };
 
   STM.prototype.send = function(channel, message) {
@@ -80,15 +82,14 @@ define(['exports', 'diffpatch'], function(exports, diffpatch) {
   };
   
   STM.prototype.action = function(name) {
-    this.actions[name] = {};
+    var action = this.actions[name] = {};
     
-    var that = this;
     return {
       onReceive: function(callback) {
-        that.actions[name].onReceive = callback;
+        action.onReceive = callback;
       },
       onRevert: function(callback) {
-        that.actions[name].onRevert = callback;
+        action.onRevert = callback;
       }
     };
   };
@@ -98,7 +99,7 @@ define(['exports', 'diffpatch'], function(exports, diffpatch) {
     this.send('subscribe', {'path': path});
   }
   
-  STM.prototype.sendAction = function(path, channel, params) {  
+  STM.prototype.sendAction = function(path, channel, params) {
     if (!(channel in this.actions))
       throw new Error("invalid action");
    
@@ -148,7 +149,7 @@ define(['exports', 'diffpatch'], function(exports, diffpatch) {
   
   // private functions
   function syncOp() {
-    if (this.waitingForReturn || this.queue.length === 0)
+    if (this.waitingForReturn || this.queue.length === 0 || !this.populated)
       return;
     this.waitingForReturn = true;
     this.send('attempt', {'attempts': this.queue});

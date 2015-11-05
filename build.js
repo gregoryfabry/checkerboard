@@ -11,6 +11,7 @@
     include: ['stm'],
     paths: {
         'stm': 'src/stm',
-        'diffpatch': 'src/diffpatch'
+        'diffpatch': 'src/diffpatch',
+        'util': 'src/util'
     }
 })

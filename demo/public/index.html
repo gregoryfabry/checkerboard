@@ -13,16 +13,14 @@ ws.addEventListener('open', function() {
         this.test = [];
     });
     
-  stm.action('push-array')
+  stm.action('push-to-array')
     .onReceive(function(num) {
-      this.test.push(num);
+      this.push(num);
     });
-  
+      
   stm.store.sendAction('create-array');
-  stm.store.test.addObserver(function() {
-    console.log('hi');
-  });
-  stm.store.sendAction('push-array', 5);
+//  stm.store.addObserver(function(){});
+  stm.store.test.sendAction('push-to-array', 5);
 
 });
 
