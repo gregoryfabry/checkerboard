@@ -23,16 +23,23 @@ module.exports.Server = function(port, inputState, opts) {
   });
   
   this.on('attempt', function(conn, message) {
+    var fixes = {};
     var successes = message.attempts.filter(function(attempt) {
-      return patch(getByPath(that.state, attempt.path), attempt.delta)
+      if (patch(getByPath(that.state, attempt.path), attempt.delta))
+        return true;
+      else
+        fixes[attempt.path] = true;
     });
     
-    conn.sendObj('attempt-returned', {'id': message.id, 'successes': successes.map(function(success) { return success.id; })});
+    for (var p in fixes)
+      fixes[p] = getByPath(that.state, p);
+    
+    conn.sendObj('attempt-returned', {'id': message.id, 'successes': successes.map(function(success) { return success.id; }), 'fixes': fixes});
     
     conns.forEach(function(otherConn) {
       if (otherConn === conn)
         return;
-        
+      
       var deltas = successes.filter(function(success) {
         for (var i = 0; i < otherConn.subs.length; i++) {
           if (getByPath(wrap(success.delta, success.path), otherConn.subs[i].path) !== null)

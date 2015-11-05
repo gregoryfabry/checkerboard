@@ -3,30 +3,80 @@
 <head>
 <script src="../../build/out.js"></script>
 <script>
-var stm, ws = new WebSocket('ws://localhost:9999');
-ws.addEventListener('open', function() {
-  stm = new checkerboard.STM(ws);
-   
-  stm.action('create-array')
-    .onReceive(function() {
-      if (typeof this.a === 'undefined')
-        this.a = [];
-    });
+
+  function ATM() {
+    this.onInitialize = function() {};
+    this.onUpdate = function(){};
     
-  stm.action('push-to-array')
-    .onReceive(function(num) {
-      this.a.push(num);
-    });
+    this.stm = new checkerboard.STM('ws://localhost:9999');
+    this.stm.action('create-account')
+      .onReceive(function() {
+        if (typeof this.account === 'undefined')
+          this.account = {'balance': 100};
+      });
       
-  stm.store.sendAction('create-array');
-  stm.store.a.addObserver(function(comparand, origin){
-    if (comparand.length - origin.length > 0)
-      console.log("Added " + (comparand.length - origin.length) + " elements: [" + comparand.slice(origin.length, comparand.length + "]"));
-  });
-  window.store = stm.store;
-  stm.store.sendAction('push-to-array', 0);
-
-});
-
-
+    this.stm.action('deposit')
+      .onReceive(function(amount) {
+        this.account.balance += amount;
+      });
+      
+      
+    this.stm.action('withdrawal')
+      .onReceive(function(amount) {
+        this.account.balance -= amount;
+      });
+      
+    var that = this;
+    this.stm.init(function(store) {
+      store.sendAction('create-account');
+      store.account.addObserver(function(newValue, oldValue) {
+        this.onUpdate(newValue.balance);
+      });
+      
+      that.deposit = function(amount) {
+        store.sendAction('deposit', amount);
+      }
+      
+      that.withdrawal = function(amount) {
+        store.sendAction('withdrawal', amount);
+      }
+      
+      that.onInitialize();
+    });
+  }
+  
+  function Bank() {
+    this.onInitialize = function() {};
+    this.onUpdate = function(){};
+    
+    this.stm = new checkerboard.STM('ws://localhost:9999');
+    
+    this.stm.action('create-account')
+      .onReceive(function() {
+        if (typeof this.account === 'undefined')
+          this.account = {'balance': 100};
+      });
+    
+    var that = this;
+    this.stm.init(function(store) {
+      store.sendAction('create-account');
+      store.account.addObserver(function(newValue, oldValue) {
+        that.onUpdate(newValue.balance);
+      });
+      
+      that.onInitialize();
+    });
+  }
+  
+  var atm1 = new ATM();
+  var atm2 = new ATM();
+  var bank = new Bank();
 </script>
+</head>
+<body>
+<div class="panel">
+
+</div>
+
+</body>
+</html>

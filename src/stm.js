@@ -18,13 +18,15 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
   };
   
   Object.prototype.sendAction = function(channel) {
+    console.time('sendAction');
     if (!('__stm' in this))
       throw new Error('sendAction called on unprepared object');
     this.__stm.sendAction(this.__path, channel, Array.prototype.slice.call(arguments, 1));
+    console.timeEnd('sendAction');
   }
     
-  function STM(ws) {
-    this.ws = ws;
+  function STM(address) {
+    this.ws = new WebSocket(address);
     
     this.actions = {};
     this.store = prepareRecursive(this, {});
@@ -37,22 +39,25 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     this.pending = [];
     this.queue = [];
     
-    this.populated = false;
+    this.initialized = false;
+    this.initFunction = function(){};
     this.waitingForReturn = false;
  
     this.ws.addEventListener('message', (function(event) {
       var envelope = JSON.parse(event.data);
       switch(envelope.channel) {
         case 'attempt-returned':
+          console.time('attempt-returned');
           for (var i = 0; i < this.pending.length; i++)
             if (envelope.message.successes.indexOf(this.pending[i].id) > -1)
               this.pending.splice(i, 1);
             
           var cur, saved = [];
-          while (typeof (cur = this.queue.pop()) !== 'undefined' || typeof (cur = this.pending.pop()) !== 'undefined') {
-            patch(getByPath(this.store, cur.path), reverse(cur.delta));
+          while (typeof (cur = this.queue.pop()) !== 'undefined' || typeof (cur = this.pending.pop()) !== 'undefined')
             saved.unshift(cur);
-          }
+          
+          for (var p in envelope.message.fixes)
+            patch(getByPath(this.store, p), envelope.message.fixes[p]);
           
           prepareRecursive(this, this.store);
                       
@@ -61,36 +66,21 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
             
           this.waitingForReturn = false;
           this.sync();
+          console.timeEnd('attempt-returned');
           break;
         case 'set-state':
-          this.populated = true;
           this.store = prepareRecursive(this, envelope.message.data);
-          var saved = this.queue.splice(0, this.queue.length);
-          for (var i = 0; i < saved.length; i++)
-            this.sendAction(saved[i].path, saved[i].channel, saved[i].params);
+          this.initialized = true;
+          this.initFunction(this.store);
           break;
         case 'update-state':
-          for (var i = 0; i < envelope.message.deltas.length; i++) {
-            var observers = Object.keys(this.observers), origin = [];
-            for (var j = 0; j < observers.length; j++) {
-              if (getByPath(wrap(envelope.message.deltas[i].delta, envelope.message.deltas[i].path), observers[i]) !== null) {
-                origin[i] = JSON.parse(JSON.stringify(getByPath(this.store, observers[i])));
-              }
-            }
-            patch(getByPath(this.store, envelope.message.deltas[i].path), envelope.message.deltas[i].delta);
-            for (var i = 0; i < origin.length; i++)
-              if (typeof origin[i] !== 'undefined')
-                for (var j = 0; j < this.observers[observers[i]].length; j++) {
-                  this.observers[observers[i]][j].callback(getByPath(this.store, observers[i]), origin[i]);
-                }
-          }
+          console.time('update-state');
+          for (var i = 0; i < envelope.message.deltas.length; i++)
+            patchAndNotify(envelope.message.deltas[i], this.store, this.observers, this);
+          console.timeEnd('update-state');
           break;
       }
     }).bind(this));
-  };
-
-  STM.prototype.send = function(channel, message) {
-    this.ws.send(JSON.stringify({'channel': channel, 'message': message}));
   };
   
   STM.prototype.action = function(name) {
@@ -106,7 +96,13 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     };
   };
   
+  STM.prototype.init = function(callback) {
+    this.initFunction = callback;
+  };
+  
   STM.prototype.addObserver = function(path, callback, depth) {
+    if (!this.initialized)
+      throw new Error("observer added before initialization");
     if (typeof this.observers[path] === 'undefined')
       this.observers[path] = [];
       
@@ -115,6 +111,9 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
   }
   
   STM.prototype.sendAction = function(path, channel, params) {
+    if (!this.initialized)
+      throw new Error("action sent added before initialization");
+      
     if (!(channel in this.actions))
       throw new Error("invalid action");
    
@@ -130,21 +129,15 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     if (typeof delta === 'undefined')
       return;
     
-    patch(origin, delta);
-    prepareRecursive(this, origin);
+    var attempt = new Attempt({'id': this.attemptID++, 'path': path, 'channel': channel, 'params': params, 'delta': delta});
+    patchAndNotify(attempt, this.store, this.observers, this);
     
-    this.queue.push(new Attempt({'id': this.attemptID++, 'path': path, 'channel': channel, 'params': params, 'delta': delta}));
+    this.queue.push(attempt);
     this.sync();
   };
   
-  function Attempt(params) {
-    var props = Object.keys(params);
-    for (var i = 0; i < props.length; i++)
-      this[props[i]] = params[props[i]];
-  };
-  
-  Attempt.prototype.toJSON = function() {
-    return {'id': this.id, 'path': this.path, 'delta': this.delta};
+  STM.prototype.send = function(channel, message) {
+    this.ws.send(JSON.stringify({'channel': channel, 'message': message}));
   };
   
   STM.prototype.sync = function(interval) {    
@@ -162,9 +155,19 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     }
   };
   
+  function Attempt(params) {
+    var props = Object.keys(params);
+    for (var i = 0; i < props.length; i++)
+      this[props[i]] = params[props[i]];
+  };
+  
+  Attempt.prototype.toJSON = function() {
+    return {'id': this.id, 'path': this.path, 'delta': this.delta};
+  };
+  
   // private functions
   function syncOp() {
-    if (this.waitingForReturn || this.queue.length === 0 || !this.populated)
+    if (this.waitingForReturn || this.queue.length === 0 || !this.initialized)
       return;
     this.waitingForReturn = true;
     this.send('attempt', {'attempts': this.queue});
@@ -196,6 +199,23 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     }
     
     return obj;
+  }
+  
+  function patchAndNotify(attempt, store, observers, stm) {
+    var observerPaths = Object.keys(observers), origin = [];
+    for (var j = 0; j < observerPaths.length; j++)
+      if (getByPath(wrap(attempt.delta, attempt.path), observerPaths[j]) !== null) {
+        var maybeOrigin = getByPath(store, observerPaths[j]);
+        if (isPOJS(maybeOrigin))
+          origin[j] = JSON.parse(JSON.stringify(maybeOrigin));
+      }
+    patch(getByPath(store, attempt.path), attempt.delta);
+    prepareRecursive(stm, getByPath(store, attempt.path));
+    
+    for (var i = 0; i < origin.length; i++)
+      if (typeof origin[i] !== 'undefined')
+        for (var j = 0; j < observers[observerPaths[i]].length; j++)
+          observers[observerPaths[i]][j].callback(getByPath(store, observerPaths[i]), origin[i]);
   }
 
   exports.STM = STM;
