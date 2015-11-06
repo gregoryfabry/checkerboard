@@ -2,11 +2,10 @@
 <html>
 <head>
 <style>
-.panel {width: 20%; margin: 20px; background-color: lightgray; border: 1px solid gray; border-radius: 5px}
+.panel {width: 20%; margin: 20px; padding: 10px; background-color: lightgray; border: 1px solid gray; border-radius: 5px}
 </style>
 <script src="../../build/out.js"></script>
 <script>
-
   var startingBalance = 100;
 
   function ATM() {
@@ -17,6 +16,7 @@
     var that = this;
     
     this.stm = new checkerboard.STM('ws://localhost:9999');
+    console.log(this.stm);
     this.stm.action('create-account')
       .onReceive(function() {
         if (typeof this.account === 'undefined')
@@ -149,7 +149,7 @@
 <body>
 <div class="panel">
 <h3>Maximum delay: <span id="sync-display"></span></h3>
-<input id="sync-delay" type="range" min="5" max="10000" step="100" onchange="updateSync(this.value)"></input>
+<input id="sync-delay" type="range" min="5" max="10000" step="100" oninput="updateSync(this.value)"></input>
 </div>
 <div class="panel">
 <h1>Bank</h1>
