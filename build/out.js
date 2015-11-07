@@ -715,12 +715,17 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       var envelope = JSON.parse(event.data);
       switch(envelope.channel) {
         case 'attempt-returned':
-          console.time('attempt-returned');
           for (var i = 0; i < pending.length; i++)
             if (envelope.message.successes.indexOf(pending[i].id) > -1)
               pending.splice(i--, 1);
             
           var cur, saved = [];
+          if (pending.length === 0) {
+            waitingForReturn = false;
+            sync;
+            break;
+          }
+          
           while (typeof (cur = queue.pop()) !== 'undefined') {
             saved.unshift(cur);
             actions[cur.channel].onRevert.apply(getByPath(store, cur.path), cur.params);
@@ -744,12 +749,15 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
            
           prepareRecursive(store);
                       
-          for (var i = 0; i < saved.length; i++)
-            sendAction.call({__stm: that, __path: saved[i].path}, saved[i].channel, saved[i].params);
+          for (var i = 0; i < saved.length; i++) {
+            if (typeof saved[i].params === 'undefined')
+              saved[i].params = [];
+            saved[i].params.unshift(saved[i].channel);
+            sendAction.apply({__stm: that, __path: saved[i].path}, saved[i].params);
+          }
             
           waitingForReturn = false;
           sync();
-          console.timeEnd('attempt-returned');
           break;
         case 'set-state':
           store = prepareRecursive(envelope.message.data);
@@ -757,10 +765,8 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
           initFunction(store);
           break;
         case 'update-state':
-          console.time('update-state');
           for (var i = 0; i < envelope.message.deltas.length; i++)
             patchAndNotify(envelope.message.deltas[i], store, observers, this);
-          console.timeEnd('update-state');
           break;
       }
     });
@@ -814,6 +820,8 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
         
       observers[path].push({'callback': callback, 'depth': depth});
       send('subscribe', {'path': path, 'depth': depth});
+
+      callback(getByPath(store, path), null);
     }
     
     function sendAction(channel) {
@@ -837,7 +845,7 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       
       actions[channel].onReceive.apply(comparand, params);
       var delta = diff(origin, comparand);
-      
+
       if (typeof delta === 'undefined')
         return;
       
