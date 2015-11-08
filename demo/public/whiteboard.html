@@ -56,13 +56,8 @@ body {margin: 0; padding: 0; height: 100vh}
         store.sendAction('add-point', e.pageX - canvas.offsetLeft, e.pageY - canvas.offsetTop);
       });
       
-      canvas.addEventListener('mouseup', function(e) {
-        store.sendAction('end-path');
-      });
-      
-      canvas.addEventListener('mouseleave', function(e) {
-        store.sendAction('end-path');
-      });
+      canvas.addEventListener('mouseup', store.sendAction.bind(store, 'end-path'));
+      canvas.addEventListener('mouseleave', store.sendAction.bind(store, 'end-path'));
       
       store.paths.addObserver(function(newValue, oldValue) {
         for (var i = 0; i < newValue.length; i++)
@@ -83,13 +78,9 @@ body {margin: 0; padding: 0; height: 100vh}
         ctx.stroke();
       }
     }
-  
   });
-
-
 </script>
 <body>
 <canvas id="whiteboard"></canvas>
-
 </body>
 </html>

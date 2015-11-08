@@ -3,6 +3,7 @@
   "version": "0.2.4",
   "description": "Shared transactional memory with zero server-side logic.",
   "author": "Gregory Fabry <glfabry2@illinois.edu>",
+  "main": "checkerboard-server.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/gregoryfabry/checkerboard"
