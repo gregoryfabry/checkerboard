@@ -1,10 +1,8 @@
-![cards example](/examples/demo.gif?raw=true)
-
 Checkerboard is a library that lets you easily create shared state among clients with zero server-side logic. It has two components: a server back-end written with node.js, and a client library for the browser. Its goal is simplicity: a collaborative whiteboard is less than sixty lines of JavaScript.
 
 ## Background
 
-
+Read about Checkerboard [here](https://medium.com/@gregoryfabry/writing-a-collaborative-whiteboard-in-70-lines-of-javascript-part-one-b146d3bffb5e).
 
 ## Install
 
@@ -19,7 +17,7 @@ Checkerboard is a library that lets you easily create shared state among clients
 
 ### Server
 
-    var port = 904;
+    var port = 9998;
     var Checkerboard = require('checkerboard');
     var CheckerboardServer = new Checkerboard.Server(port, [optionalState]);
 
@@ -31,7 +29,7 @@ Include:
 
 Then:
 
-    var stm = new checkerboard.STM('ws://localhost:904/');
+    var stm = new checkerboard.STM('ws://localhost:9998/');
 
 #### Actions
 
