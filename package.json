@@ -1,25 +1,22 @@
 {
   "name": "checkerboard",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Shared transactional memory with zero server-side logic.",
   "author": "Gregory Fabry <glfabry2@illinois.edu>",
+  "main": "server.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/gregoryfabry/checkerboard"
   },
-  "main": "main.js",
-  "scripts": {
-    "test": "mocha test",
-    "coverage": "./node_modules/.bin/istanbul cover ./node_modules/mocha/bin/_mocha -- ./test/"
-  },
   "dependencies": {
+    "almond": "^0.3.1",
+    "amdefine": "^1.0.0",
+    "requirejs": "^2.1.20",
     "ws": "^0.7.2"
   },
-  "devDependencies": {
-    "chai": "^3.0.0",
-    "clone": "^1.0.2",
-    "istanbul": "^0.3.15",
-    "mocha": "^2.2.5"
-  },
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "build": "node node_modules/requirejs/bin/r.js -o build.js",
+    "build-continuous": "nodemon node_modules/requirejs/bin/r.js -o build.js -C -w src"
+  }
 }
