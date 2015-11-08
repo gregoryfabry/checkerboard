@@ -107,6 +107,8 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     
     var init = this.init = function(callback) {
       initFunction = callback;
+      if (initialized)
+        initFunction(store);
     };
     
     var sync = this.sync = function(interval) {    

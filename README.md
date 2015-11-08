@@ -58,3 +58,33 @@ Then, call the init function:
 In the init function, you can attach observers to the store and create event handlers that send actions to the store.
 
 Now, launch the server and open the client webpage in two tabs. Open the console and observe what happens when you click on the page. (Note: you will want to set body height to '100vh' in CSS, otherwise the body won't extend all the way down the page.
+
+## API (browser)
+
+### new checkerboard.STM(address)
+
+Create a new instance of the checkerboard framework. Address should point to the WebSocket server/port.
+
+### stm.action(name).onReceive(callback).onRevert(callback)
+
+Registers an action. The onReceive callback is invoked when the action is sent to an object in the store. The onRevert callback is invoked if the action fails, before it is retried.
+
+### stm.init(callback)
+
+Initializes the framework. Callback takes one parameter, store.
+
+### store.addObserver(callback)
+
+Adds an observer on the store or on any nested object. Callback is invoked with two parameters, newValue and oldValue, whenever the object is changed (locally or by another client). When the observer is first added the callback is immediately called with initial data as newValue and oldValue set to null.
+
+### store.sendAction(action[, parameter1[, parameter2[, ...]]])
+
+Sends an action to the store or any nested object. The actions onReceive method is called, with its this keyword set to the object that sendAction was called on.
+
+## Notes
+
+- The store must only be accessed in the init callback or in an observer.  
+- Actions should not be sent inside other actions.  
+- Objects in the store are only updated when they have an observer.  
+- Observers can only be attached and actions can only be sent to objects, not primitives.  
+- UI should only be updated in an observer.
