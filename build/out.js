@@ -693,14 +693,15 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
   var isChild = util.isChild;
     
   function STM(addressOrWs) {
-    var ws;
     if (typeof addressOrWs === "string")
-      ws = new WebSocket(addressOrWs);
+      this.ws = new WebSocket(addressOrWs);
     else if (addressOrWs instanceof WebSocket)
-      ws = addressOrWs;
+      this.ws = addressOrWs;
     else
       throw new Error("invalid websocket config");
       
+    var ws = this.ws;
+    
     var actions = {};
     var store = null;
     var observers = {};
