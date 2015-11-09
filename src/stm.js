@@ -10,9 +10,15 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
   var wrap = util.wrap;
   var isChild = util.isChild;
     
-  function STM(address) {
-    var ws = new WebSocket(address);
-    
+  function STM(addressOrWs) {
+    var ws;
+    if (typeof addressOrWs === "string")
+      ws = new WebSocket(addressOrWs);
+    else if (addressOrWs instanceof WebSocket)
+      ws = addressOrWs;
+    else
+      throw new Error("invalid websocket config");
+      
     var actions = {};
     var store = null;
     var observers = {};
@@ -37,18 +43,14 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
             if (envelope.message.successes.indexOf(pending[i].id) > -1)
               pending.splice(i--, 1);
             
-          var cur, saved = [];
           if (pending.length === 0) {
             waitingForReturn = false;
-            sync;
+            sync();
             break;
           }
-          
-          while (typeof (cur = queue.pop()) !== 'undefined') {
-            saved.unshift(cur);
-            actions[cur.channel].onRevert.apply(getByPath(store, cur.path), cur.params);
-          }
-          while (typeof (cur = pending.pop()) !== 'undefined') {
+
+          var cur, saved = [];          
+          while (typeof (cur = queue.pop()) !== 'undefined' || typeof (cur = pending.pop()) !== 'undefined') {
             saved.unshift(cur);
             actions[cur.channel].onRevert.apply(getByPath(store, cur.path), cur.params);
           }
@@ -91,14 +93,23 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     
     // public functions
     var action = this.action = function(name) {
+      if (!(typeof name === "string"))
+        throw new Error("invalid action name");
+      if (name in actions)
+        throw new Error("duplicate action");
+        
       var a = actions[name] = {'onReceive': noop, 'onRevert': noop};
       
       return {
         onReceive: function(callback) {
+          if (!(typeof callback === "function"))
+            throw new Error("invalid callback");
           a.onReceive = callback;
           return this;
         },
         onRevert: function(callback) {
+          if (!(typeof callback === "function"))
+            throw new Error("invalid callback");
           a.onRevert = callback;
           return this;
         }
@@ -106,6 +117,8 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     };
     
     var init = this.init = function(callback) {
+      if (!(typeof callback === "function"))
+        throw new Error("invalid callback");
       initFunction = callback;
       if (initialized)
         initFunction(store);
@@ -129,7 +142,8 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     function addObserver(callback, depth) {
       if (!('__stm' in this))
         throw new Error('addObserver called on unprepared object');
-        
+      if (!(typeof callback === "function"))
+        throw new Error("invalid callback");
       var path = this.__path;
       
       if (!initialized)
@@ -147,14 +161,14 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     function sendAction(channel) {
       if (!('__stm' in this))
         throw new Error('sendAction called on unprepared object');
-      
+
       var path = this.__path;
       var params = Array.prototype.slice.call(arguments, 1)
       
       if (!initialized)
         throw new Error("action sent added before initialization");
         
-      if (!(channel in actions))
+      if (typeof channel !== 'string' || !(channel in actions))
         throw new Error("invalid action");
      
       var origin = getByPath(store, path); 

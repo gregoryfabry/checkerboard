@@ -1,4 +1,6 @@
-Checkerboard is a library that lets you easily create shared state among clients with zero server-side logic. It has two components: a server back-end written with node.js, and a client library for the browser. Its goal is simplicity: a collaborative whiteboard is less than sixty lines of JavaScript.
+Checkerboard is a library that lets you easily create shared state among clients with zero server-side configuration. It has two components: a server back-end written with node.js, and a client library for the browser. Its goal is simplicity: a collaborative whiteboard is less than sixty lines of JavaScript.
+
+Checkerboard creates a store that is automatically synced across all devices. Developers can focus on writing applications, not writing networking logic.
 
 ## Background
 
@@ -14,6 +16,8 @@ Read about Checkerboard [here](https://medium.com/@gregoryfabry/writing-a-collab
     node demo-server
 
 ## Use
+
+This code follows the *coords.html* demo in the checkerboard-demo repository.
 
 ### Server
 
@@ -47,7 +51,10 @@ Then, call the init function:
 
     stm.init(function(store) {
       store.addObserver(function(newValue, oldValue) {
-        console.log("Coords changed from " + newValue + " to " oldValue");
+        if (oldValue !== null)
+          console.log("Coords changed from " + JSON.stringify(oldValue) + " to " + JSON.stringify(newValue));
+        else
+          console.log("Coords are set at " + JSON.stringify(newValue));
       });
       
       document.body.addEventListener('click', function(e) {
@@ -57,7 +64,7 @@ Then, call the init function:
     
 In the init function, you can attach observers to the store and create event handlers that send actions to the store.
 
-Now, launch the server and open the client webpage in two tabs. Open the console and observe what happens when you click on the page. (Note: you will want to set body height to '100vh' in CSS, otherwise the body won't extend all the way down the page.
+Now, launch the server and open the client webpage in two tabs. Open the console and observe what happens when you click on the page. (Note: you will want to set body height to '100vh' in CSS, otherwise the body won't extend all the way down the page.)
 
 ## API (browser)
 
