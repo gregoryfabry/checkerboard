@@ -4,41 +4,52 @@ define(['exports', 'util'], function(exports, util) {
   function diff(origin, comparand) {
     if (!isPOJS(origin) || !isPOJS(comparand))
       throw new Error('Attempting to diff a non-object');
-    var delta = {}, props = [];
+    var delta = {}, props = {};
     
-    var originProps = Object.keys(origin), comparandProps = Object.keys(comparand);
-    [].push.apply(props, originProps);
-    [].push.apply(props, comparandProps);
-    props = props.filter(function(element, index, array) {
-      return this.hasOwnProperty(element) ? false : this[element] = true;
-    }, {});
+    var isArray = origin instanceof Array;
     
+    if (!isArray) {
+      var originProps = Object.keys(origin), comparandProps = Object.keys(comparand);
+      for (var i = 0; i < originProps.length; i++)
+        props[originProps[i]] = true;
+          
+      for (var i = 0; i < comparandProps.length; i++)
+        props[comparandProps[i]] = true;
+          
+      props = Object.keys(props);
+    }
+  
     var fPropInOrigin, fPropInComparand, fUndefinedInOrigin, fUndefinedInComparand, fTypesMatch, fObjInOrigin, fObjInComparand;
-    for (var i = 0; i < props.length; i++) {
-      fPropInOrigin = props[i] in origin;
-      fPropInComparand = props[i] in comparand;
-      fUndefinedInOrigin = typeof origin[props[i]] === 'undefined';
-      fUndefinedInComparand = typeof comparand[props[i]] === 'undefined';
-      fTypesMatch = typeof comparand[props[i]] === typeof origin[props[i]];
-      fObjInOrigin = fPropInOrigin && !fUndefinedInOrigin && isPOJS(origin[props[i]]);
-      fObjInComparand = fPropInComparand && !fUndefinedInComparand && isPOJS(comparand[props[i]]);
+    var prop, oObj, cObj;
+    for (var i = 0; i < (isArray ? Math.max(origin.length, comparand.length) : props.length); i++) {
+      prop = isArray ? i : props[i];
+      oObj = origin[prop];
+      cObj = comparand[prop];
+        
+      fPropInOrigin = origin.hasOwnProperty(prop);
+      fPropInComparand = comparand.hasOwnProperty(prop);
+      fUndefinedInOrigin = oObj === void 0;
+      fUndefinedInComparand = cObj === void 0;
+      fTypesMatch = typeof cObj === typeof oObj;
+      fObjInOrigin = fPropInOrigin && !fUndefinedInOrigin && isPOJS(oObj);
+      fObjInComparand = fPropInComparand && !fUndefinedInComparand && isPOJS(cObj);
       
       if (fPropInOrigin && fUndefinedInOrigin && !fUndefinedInComparand)
-        delta[props[i]] = [1, 1, comparand[props[i]]]; //{_op: 'mu', nmu: comparand[props[i]]};
+        delta[prop] = [1, 1, cObj]; //{_op: 'mu', nmu: cObj};
       else if (fPropInComparand && (!fUndefinedInOrigin && fPropInOrigin) && fUndefinedInComparand)
-        delta[props[i]] = [1, 2, null, origin[props[i]]]; //{_op: 'su', osu: origin[props[i]]};
+        delta[prop] = [1, 2, null, oObj]; //{_op: 'su', osu: oObj};
       else if (!fPropInOrigin && fPropInComparand && fUndefinedInComparand)
-        delta[props[i]] = [0, 2];
+        delta[prop] = [0, 2];
       else if (!fPropInOrigin && fPropInComparand)
-        delta[props[i]] = [0, 0, comparand[props[i]]]; //{_op: 's', ns: comparand[props[i]]};
+        delta[prop] = [0, 0, cObj]; //{_op: 's', ns: cObj};
       else if (fPropInOrigin && !fPropInComparand)
-        delta[props[i]] = [2, 0, null, origin[props[i]]]; //{_op: 'd', od: origin[props[i]]}
+        delta[prop] = [2, 0, null, oObj]; //{_op: 'd', od: oObj}
       else if (fUndefinedInOrigin && !fPropInComparand)
-        delta[props[i]] = [2, 1]; //{_op: 'du'};
-      else if (!fTypesMatch || (fTypesMatch && !fObjInOrigin && !fObjInComparand && origin[props[i]] !== comparand[props[i]]))
-        delta[props[i]] = [1, 0, comparand[props[i]], origin[props[i]]]; //{_op: 'm', om: origin[props[i]], nm: comparand[props[i]]};
-      else if (fObjInOrigin && fObjInComparand && typeof (subDelta = diff(origin[props[i]], comparand[props[i]])) !== 'undefined')
-        delta[props[i]] = subDelta;
+        delta[prop] = [2, 1]; //{_op: 'du'};
+      else if (!fTypesMatch || (fTypesMatch && !fObjInOrigin && !fObjInComparand && oObj !== cObj))
+        delta[prop] = [1, 0, cObj, oObj]; //{_op: 'm', om: oObj, nm: cObj};
+      else if (fObjInOrigin && fObjInComparand && typeof (subDelta = diff(oObj, cObj)) !== 'undefined')
+        delta[prop] = subDelta;
     }
 
     if (Object.keys(delta).length > 0)
