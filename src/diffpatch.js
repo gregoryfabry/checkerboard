@@ -95,35 +95,39 @@ define(['exports', 'util'], function(exports, util) {
     return toReturn;
   }
 
+  var placeholder = {};
   function patch(target, delta, checked) {
     if (typeof delta === 'undefined')
       return true;
-    
-    if (delta instanceof Array) {
-      target = {0: target};
-      delta = {0: delta};
-    }
     
     if (typeof checked === 'undefined' && !check(target, delta)) {
       return false;
     }
       
     Object.keys(delta).forEach(function(prop) {
-      if (!(delta[prop] instanceof Array))
+      if (!(delta[prop] instanceof Array)) {
         patch(target[prop], delta[prop], true);
-      else {
+        if (target[prop] instanceof Array) {
+          var newArray = [];
+          
+          for (var i = 0; i < target[prop].length; i++)
+            if (target[prop][i] !== placeholder)
+              newArray[newArray.length] = target[prop][i];
+          
+          target[prop] = newArray;
+        }
+      } else {
         switch(delta[prop][0]) {
           case 0:  
           case 1:  target[prop] = delta[prop][1] !== 2 ? delta[prop][2] : undefined;   break;
-          case 2:
+          case 2:  
             if (target instanceof Array)
-              target.splice(prop, 1)
+              target[prop] = placeholder;
             else
               delete target[prop];
         }
       }
-    });
-    
+    });  
     return true;
   }
 

@@ -1,7 +1,9 @@
   stm = require('stm');
   })();
-  if (typeof define !== 'undefined')
-    define('checkerboard', stm);
-  else
-    window.checkerboard = stm;
+  if (window) {
+    if (typeof window.define !== 'undefined')
+      window.define('checkerboard', stm);
+    else
+      window.checkerboard = stm;
+  }
 }());

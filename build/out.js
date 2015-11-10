@@ -596,35 +596,39 @@ define('diffpatch',['exports', 'util'], function(exports, util) {
     return toReturn;
   }
 
+  var placeholder = {};
   function patch(target, delta, checked) {
     if (typeof delta === 'undefined')
       return true;
-    
-    if (delta instanceof Array) {
-      target = {0: target};
-      delta = {0: delta};
-    }
     
     if (typeof checked === 'undefined' && !check(target, delta)) {
       return false;
     }
       
     Object.keys(delta).forEach(function(prop) {
-      if (!(delta[prop] instanceof Array))
+      if (!(delta[prop] instanceof Array)) {
         patch(target[prop], delta[prop], true);
-      else {
+        if (target[prop] instanceof Array) {
+          var newArray = [];
+          
+          for (var i = 0; i < target[prop].length; i++)
+            if (target[prop][i] !== placeholder)
+              newArray[newArray.length] = target[prop][i];
+          
+          target[prop] = newArray;
+        }
+      } else {
         switch(delta[prop][0]) {
           case 0:  
           case 1:  target[prop] = delta[prop][1] !== 2 ? delta[prop][2] : undefined;   break;
-          case 2:
+          case 2:  
             if (target instanceof Array)
-              target.splice(prop, 1)
+              target[prop] = placeholder;
             else
               delete target[prop];
         }
       }
-    });
-    
+    });  
     return true;
   }
 
@@ -858,7 +862,10 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       if (origin === null)
         throw new Error("invalid path");
       
-      var comparand = JSON.parse(JSON.stringify(origin));
+      var comparand = prepareRecursive(JSON.parse(JSON.stringify(origin)), path != '' ? path.split('.') : undefined);
+      
+      if (actions[channel].onReceive.apply(comparand, params) === false)
+        return;
       
       actions[channel].onReceive.apply(comparand, params);
       var delta = diff(origin, comparand);
@@ -927,7 +934,7 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
             origin[j] = JSON.parse(JSON.stringify(maybeOrigin));
         }
       patch(getByPath(store, attempt.path), attempt.delta);
-      prepareRecursive(getByPath(store, attempt.path));
+      prepareRecursive(getByPath(store, attempt.path), attempt.path !== '' ? attempt.path.split('.') : undefined);      
       
       for (var i = 0; i < origin.length; i++)
         if (typeof origin[i] !== 'undefined')
@@ -950,8 +957,10 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
 });
   stm = require('stm');
   })();
-  if (typeof define !== 'undefined')
-    define('checkerboard', stm);
-  else
-    window.checkerboard = stm;
+  if (window) {
+    if (typeof window.define !== 'undefined')
+      window.define('checkerboard', stm);
+    else
+      window.checkerboard = stm;
+  }
 }());

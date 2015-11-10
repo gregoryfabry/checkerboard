@@ -176,7 +176,10 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
       if (origin === null)
         throw new Error("invalid path");
       
-      var comparand = JSON.parse(JSON.stringify(origin));
+      var comparand = prepareRecursive(JSON.parse(JSON.stringify(origin)), path != '' ? path.split('.') : undefined);
+      
+      if (actions[channel].onReceive.apply(comparand, params) === false)
+        return;
       
       actions[channel].onReceive.apply(comparand, params);
       var delta = diff(origin, comparand);
@@ -245,7 +248,7 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
             origin[j] = JSON.parse(JSON.stringify(maybeOrigin));
         }
       patch(getByPath(store, attempt.path), attempt.delta);
-      prepareRecursive(getByPath(store, attempt.path));
+      prepareRecursive(getByPath(store, attempt.path), attempt.path !== '' ? attempt.path.split('.') : undefined);      
       
       for (var i = 0; i < origin.length; i++)
         if (typeof origin[i] !== 'undefined')
