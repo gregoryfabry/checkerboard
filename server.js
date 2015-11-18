@@ -1,4 +1,4 @@
-var WebSocket = require('./node_modules/ws/index.js');
+var WebSocket = require('ws');
 var events = require('events');
 var nodeutil = require('util');
 var diffpatch = require('./src/diffpatch.js'), diff = diffpatch.diff, patch = diffpatch.patch;
