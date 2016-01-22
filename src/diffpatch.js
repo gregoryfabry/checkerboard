@@ -30,7 +30,7 @@ define(['exports', 'util'], function(exports, util) {
       fPropInComparand = comparand.hasOwnProperty(prop);
       fUndefinedInOrigin = oObj === void 0;
       fUndefinedInComparand = cObj === void 0;
-      fTypesMatch = typeof cObj === typeof oObj;
+      fTypesMatch = typeof cObj === typeof oObj && ((cObj === null) === (oObj === null));
       fObjInOrigin = fPropInOrigin && !fUndefinedInOrigin && isPOJS(oObj);
       fObjInComparand = fPropInComparand && !fUndefinedInComparand && isPOJS(cObj);
       
