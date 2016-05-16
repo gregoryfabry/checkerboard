@@ -96,8 +96,6 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     var action = this.action = function(name) {
       if (!(typeof name === "string"))
         throw new Error("invalid action name");
-      if (name in actions)
-        throw new Error("duplicate action");
         
       var a = actions[name] = {'onReceive': noop, 'onRevert': noop};
       
