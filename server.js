@@ -41,10 +41,6 @@ module.exports.Server = function(port, inputState, opts) {
       if (patch(getByPath(that.state, attempt.path), attempt.delta))
         return true;
       else {
-        console.log(JSON.stringify(getByPath(that.state, attempt.path)),
-          JSON.stringify(that.state),
-          JSON.stringify(attempt));
-        process.exit(1);
         fixes[attempt.path] = true;
       }
     });
