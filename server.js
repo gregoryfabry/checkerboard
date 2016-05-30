@@ -14,6 +14,9 @@ module.exports.Server = function(port, inputState, opts) {
     this.logFile = Date.now() + '.log';
     logPath = path.resolve(opts.logDir, this.logFile);
     writeStream = fs.createWriteStream(logPath);
+
+    var initialPath = path.resolve(opts.logDir, this.logFile + '.initial');
+    fs.writeFileSync(initialPath, JSON.stringify(inputState || {}));
   }
 
   function log(data) {
