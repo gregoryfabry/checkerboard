@@ -34,6 +34,11 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     var initFunction = function(){};
     var waitingForReturn = false;
 
+    this.lib = {
+      'diffpatch': diffpatch,
+      'util': util
+    };
+
     var that = this;
 
     ws.addEventListener('message', function(event) {

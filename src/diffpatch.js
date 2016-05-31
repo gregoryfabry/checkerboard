@@ -57,6 +57,7 @@ define(['exports', 'util'], function(exports, util) {
   }
 
   function reverse(delta) {
+    debugger;
     var toReturn = {};
     for (var prop in delta) {
       if (!delta.hasOwnProperty(prop))
@@ -84,7 +85,7 @@ define(['exports', 'util'], function(exports, util) {
               toReturn[prop][3] = delta[prop][2];
             } else if (delta[prop][1] === 1) {
               toReturn[prop][1] = 2;
-              toReturn[prop][2] = null
+              toReturn[prop][2] = null;
               toReturn[prop][3] = delta[prop][2];
             } else {
               toReturn[prop][1] = 1;
@@ -144,7 +145,7 @@ define(['exports', 'util'], function(exports, util) {
     });
     return true;
   }
-  
+
   function check(target, delta) {
     if (typeof target === 'undefined' || typeof delta === 'undefined')
       return typeof target === 'undefined' && typeof delta === 'undefined';
@@ -159,7 +160,7 @@ define(['exports', 'util'], function(exports, util) {
         }
       } catch (e) {
         return false;
-      };
+      }
     });
   }
 

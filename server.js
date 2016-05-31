@@ -21,7 +21,7 @@ module.exports.Server = function(port, inputState, opts) {
 
   function log(data) {
     if (opts.log)
-      writeStream.write(JSON.stringify(data) + "\n");
+      writeStream.write(JSON.stringify({ts: Date.now(), deltas: data}) + "\n");
   }
 
   this.websocketServer = new WebSocket.Server({'port': port});
