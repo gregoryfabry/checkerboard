@@ -215,7 +215,6 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
         path = [];
 
       if (isPOJS(obj)) {
-        var props = Object.keys(obj);
         if (!obj.hasOwnProperty('__path')) {
           Object.defineProperties(obj, {
             '__path': {
@@ -232,11 +231,12 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
             }
           });
         }
-        for (var i = 0; i < props.length; i++) {
-          path.push(props[i]);
-          if (props[i] != '__path' && props[i] != '__stm' && props[i] != 'addObserver' && props[i] != 'sendAction')
-            prepareRecursive(obj[props[i]], path);
-          path.pop();
+        for (var p in obj) {
+          if (p != '__path' && p != '__stm' && p != 'addObserver' && p != 'sendAction') {
+            path.push(p);
+            prepareRecursive(obj[p], path);
+            path.pop();
+          }
         }
       }
 
@@ -244,20 +244,17 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     }
 
     function patchAndNotify(attempt) {
-      var observerPaths = Object.keys(observers), origin = [];
-      for (var j = 0; j < observerPaths.length; j++)
-        if (getByPath(wrap(attempt.delta, attempt.path), observerPaths[j]) !== null) {
-          var maybeOrigin = getByPath(store, observerPaths[j]);
-          if (isPOJS(maybeOrigin))
-            origin[j] = JSON.parse(JSON.stringify(maybeOrigin));
-        }
+      var origin = JSON.parse(JSON.stringify(store));
       patch(getByPath(store, attempt.path), attempt.delta, true);
       prepareRecursive(getByPath(store, attempt.path), attempt.path !== '' ? attempt.path.split('.') : undefined);
 
-      for (var i = 0; i < origin.length; i++)
-        if (typeof origin[i] !== 'undefined')
-          for (var j = 0; j < observers[observerPaths[i]].length; j++)
-            observers[observerPaths[i]][j].callback(getByPath(store, observerPaths[i]), origin[i]);
+      for (var path in observers) {
+        if (getByPath(wrap(attempt.delta, attempt.path), path) !== null && isPOJS(getByPath(origin, path))) {
+          for (var j = 0; j < observers[path].length; j++) {
+            observers[path][j].callback(getByPath(store, path), getByPath(origin, path));
+          }
+        }
+      }
     }
   }
 
@@ -265,7 +262,7 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
     var props = Object.keys(params);
     for (var i = 0; i < props.length; i++)
       this[props[i]] = params[props[i]];
-  };
+  }
 
   Attempt.prototype.toJSON = function() {
     return {'id': this.id, 'path': this.path, 'delta': this.delta};

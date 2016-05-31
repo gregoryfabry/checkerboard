@@ -57,7 +57,6 @@ define(['exports', 'util'], function(exports, util) {
   }
 
   function reverse(delta) {
-    debugger;
     var toReturn = {};
     for (var prop in delta) {
       if (!delta.hasOwnProperty(prop))
