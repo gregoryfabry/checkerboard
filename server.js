@@ -5,7 +5,7 @@ var diffpatch = require('./src/diffpatch.js'), diff = diffpatch.diff, patch = di
 var util = require('./src/util.js'), isPOJS = util.isPOJS, getByPath = util.getByPath, wrap = util.wrap;
 var fs = require('fs'), path = require('path');
 
-module.exports.Server = function(port, inputState, opts) {
+module.exports.Server = function(portOrServer, inputState, opts) {
   if (typeof opts === 'undefined')
     opts = {};
 
@@ -24,7 +24,12 @@ module.exports.Server = function(port, inputState, opts) {
       writeStream.write(JSON.stringify({ts: Date.now(), deltas: data}) + "\n");
   }
 
-  this.websocketServer = new WebSocket.Server({'port': port});
+  if (parseInt(portOrServer) == parseInt(portOrServer)) {
+    this.websocketServer = new WebSocket.Server({'port': portOrServer});
+  } else {
+    this.websocketServer = new WebSocket.Server({'server': portOrServer});
+  }
+
   this.state = inputState || {};
 
   var conns = [];
