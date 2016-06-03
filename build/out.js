@@ -446,23 +446,23 @@ define('util',['exports'], function(exports) {
       typeof obj === 'object' &&
       obj !== null;
   }
-  
+
   function getByPath(obj, path) {
     if (path === "")
       return obj;
-  
+
     var keys = path.split('.');
-    
+
     for (var i = 0; i < keys.length && obj; i++)
         obj = obj[keys[i]];
-        
-    return i >= keys.length ? obj : null;
+
+    return i >= keys.length ? obj : undefined;
   }
-  
+
   function wrap(obj, path, root) {
     if (path === "")
       return obj;
-    
+
     if (typeof root === 'undefined')
       root = {};
 
@@ -471,34 +471,35 @@ define('util',['exports'], function(exports) {
       root[c[0]] = obj;
       return root;
     }
-    
+
     root[c[0]] = {};
     wrap(obj, c.splice(1), root[c[0]]);
-    
+
     return root;
   }
-  
+
   // is b a subdir of or equiv to a?
   function isChild(a, b) {
     if (a === "")
       return true;
-      
+
     a = a.split('.');
     b = b.split('.');
-    
+
     var i;
     for (i = 0; i < a.length; i++)
       if (a[i] !== b[i] || i >= b.length)
         return -1;
-        
+
     return b.length - i;
   }
-  
+
   exports.isPOJS = isPOJS;
   exports.getByPath = getByPath;
   exports.wrap = wrap;
   exports.isChild = isChild;
 });
+
 
 
 define('diffpatch',['exports', 'util'], function(exports, util) {
@@ -883,13 +884,30 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
 
       var comparand = JSON.parse(JSON.stringify(origin));
 
-      if (applyQuick(actions[channel].onReceive, comparand, params) === false)
+      var extPath = applyQuick(actions[channel].onReceive, comparand, params);
+      if (extPath === false)
         return;
+
+      if (typeof extPath !== 'undefined') {
+        origin = {'toDiff': getByPath(origin, extPath)};
+        comparand = {'toDiff': getByPath(comparand, extPath)};
+      }
 
       var delta = diff(origin, comparand);
 
+
       if (typeof delta === 'undefined')
         return;
+        
+      if (typeof extPath !== 'undefined') {
+        newDelta = {};
+        var paths = extPath.split('.');
+        newDelta[paths[paths.length - 1]] = delta.toDiff;
+        paths.pop();
+        if (paths.length > 0)
+          path += '.' + paths.join('.');
+        delta = newDelta;
+      }
 
       var attempt = new Attempt({'id': attemptID++, 'path': path, 'channel': channel, 'params': params, 'delta': delta});
       patchAndNotify(attempt);
@@ -949,7 +967,7 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       prepareRecursive(getByPath(store, attempt.path), attempt.path !== '' ? attempt.path.split('.') : undefined);
 
       for (var path in observers) {
-        if (getByPath(wrap(attempt.delta, attempt.path), path) !== null && isPOJS(getByPath(origin, path))) {
+        if (typeof getByPath(wrap(attempt.delta, attempt.path), path) !== 'undefined' && isPOJS(getByPath(origin, path))) {
           for (var j = 0; j < observers[path].length; j++) {
             observers[path][j].callback(getByPath(store, path), getByPath(origin, path));
           }
