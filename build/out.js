@@ -446,23 +446,23 @@ define('util',['exports'], function(exports) {
       typeof obj === 'object' &&
       obj !== null;
   }
-  
+
   function getByPath(obj, path) {
     if (path === "")
       return obj;
-  
+
     var keys = path.split('.');
-    
+
     for (var i = 0; i < keys.length && obj; i++)
         obj = obj[keys[i]];
-        
-    return i >= keys.length ? obj : null;
+
+    return i >= keys.length ? obj : undefined;
   }
-  
+
   function wrap(obj, path, root) {
     if (path === "")
       return obj;
-    
+
     if (typeof root === 'undefined')
       root = {};
 
@@ -471,29 +471,29 @@ define('util',['exports'], function(exports) {
       root[c[0]] = obj;
       return root;
     }
-    
+
     root[c[0]] = {};
     wrap(obj, c.splice(1), root[c[0]]);
-    
+
     return root;
   }
-  
+
   // is b a subdir of or equiv to a?
   function isChild(a, b) {
     if (a === "")
       return true;
-      
+
     a = a.split('.');
     b = b.split('.');
-    
+
     var i;
     for (i = 0; i < a.length; i++)
       if (a[i] !== b[i] || i >= b.length)
         return -1;
-        
+
     return b.length - i;
   }
-  
+
   exports.isPOJS = isPOJS;
   exports.getByPath = getByPath;
   exports.wrap = wrap;
@@ -501,32 +501,33 @@ define('util',['exports'], function(exports) {
 });
 
 
+
 define('diffpatch',['exports', 'util'], function(exports, util) {
   function diff(origin, comparand) {
     if (!isPOJS(origin) || !isPOJS(comparand))
       throw new Error('Attempting to diff a non-object');
     var delta = {}, props = {};
-    
+
     var isArray = origin instanceof Array;
-    
+
     if (!isArray) {
       var originProps = Object.keys(origin), comparandProps = Object.keys(comparand);
       for (var i = 0; i < originProps.length; i++)
         props[originProps[i]] = true;
-          
+
       for (var i = 0; i < comparandProps.length; i++)
         props[comparandProps[i]] = true;
-          
+
       props = Object.keys(props);
     }
-  
+
     var fPropInOrigin, fPropInComparand, fUndefinedInOrigin, fUndefinedInComparand, fTypesMatch, fObjInOrigin, fObjInComparand;
     var prop, oObj, cObj;
     for (var i = 0; i < (isArray ? Math.max(origin.length, comparand.length) : props.length); i++) {
       prop = isArray ? i : props[i];
       oObj = origin[prop];
       cObj = comparand[prop];
-        
+
       fPropInOrigin = origin.hasOwnProperty(prop);
       fPropInComparand = comparand.hasOwnProperty(prop);
       fUndefinedInOrigin = oObj === void 0;
@@ -534,7 +535,7 @@ define('diffpatch',['exports', 'util'], function(exports, util) {
       fTypesMatch = typeof cObj === typeof oObj && ((cObj === null) === (oObj === null));
       fObjInOrigin = fPropInOrigin && !fUndefinedInOrigin && isPOJS(oObj);
       fObjInComparand = fPropInComparand && !fUndefinedInComparand && isPOJS(cObj);
-      
+
       if (fPropInOrigin && fUndefinedInOrigin && !fUndefinedInComparand)
         delta[prop] = [1, 1, cObj]; //{_op: 'mu', nmu: cObj};
       else if (fPropInComparand && (!fUndefinedInOrigin && fPropInOrigin) && fUndefinedInComparand)
@@ -556,7 +557,7 @@ define('diffpatch',['exports', 'util'], function(exports, util) {
     if (Object.keys(delta).length > 0)
       return delta;
   }
-  
+
   function reverse(delta) {
     var toReturn = {};
     for (var prop in delta) {
@@ -585,7 +586,7 @@ define('diffpatch',['exports', 'util'], function(exports, util) {
               toReturn[prop][3] = delta[prop][2];
             } else if (delta[prop][1] === 1) {
               toReturn[prop][1] = 2;
-              toReturn[prop][2] = null
+              toReturn[prop][2] = null;
               toReturn[prop][3] = delta[prop][2];
             } else {
               toReturn[prop][1] = 1;
@@ -608,38 +609,41 @@ define('diffpatch',['exports', 'util'], function(exports, util) {
   }
 
   var placeholder = {};
-  function patch(target, delta, checked) {
+  function patch(target, delta, checked, recur) {
+    if (typeof recur === 'undefined')
+      delta = JSON.parse(JSON.stringify(delta));
+
     if (typeof delta === 'undefined')
       return true;
-    
+
     if (typeof checked === 'undefined' && !check(target, delta)) {
       return false;
     }
-      
+
     Object.keys(delta).forEach(function(prop) {
       if (!(delta[prop] instanceof Array)) {
-        patch(target[prop], delta[prop], true);
+        patch(target[prop], delta[prop], true, true);
         if (target[prop] instanceof Array) {
           var newArray = [];
-          
+
           for (var i = 0; i < target[prop].length; i++)
             if (target[prop][i] !== placeholder)
               newArray[newArray.length] = target[prop][i];
-          
+
           target[prop] = newArray;
         }
       } else {
         switch(delta[prop][0]) {
-          case 0:  
+          case 0:
           case 1:  target[prop] = delta[prop][1] !== 2 ? delta[prop][2] : undefined;   break;
-          case 2:  
+          case 2:
             if (target instanceof Array)
               target[prop] = placeholder;
             else
               delete target[prop];
         }
       }
-    });  
+    });
     return true;
   }
 
@@ -652,22 +656,22 @@ define('diffpatch',['exports', 'util'], function(exports, util) {
       try {
         switch(delta[prop][0]) {
           case 0: return !(prop in target);
-          case 1: 
+          case 1:
           case 2: return deepequals(target[prop], delta[prop][3]);
         }
       } catch (e) {
         return false;
-      };
+      }
     });
   }
 
   function deepequals(origin, comparand, props) {
     if (!isPOJS(origin))
       return origin === comparand;
-    
+
     if (typeof props === 'undefined')
       [].push.apply(props = Object.keys(origin), Object.keys(comparand));
-      
+
     for (var i = 0, isObj; i < props.length; i++) {
       if (typeof origin[props[i]] !== typeof comparand[props[i]] || ((isObj = isPOJS(origin[props[i]])) !== isPOJS(comparand[props[i]])) )
         return false;
@@ -676,10 +680,10 @@ define('diffpatch',['exports', 'util'], function(exports, util) {
       else if (!isObj && origin[props[i]] !== comparand[props[i]])
         return false;
     }
-    
+
     return true;
   }
-  
+
   function isPOJS(obj) {
     return !(
       obj instanceof Date ||
@@ -689,7 +693,7 @@ define('diffpatch',['exports', 'util'], function(exports, util) {
       typeof obj === 'object' &&
       obj !== null;
   }
-  
+
   exports.diff = diff;
   exports.patch = patch;
   exports.reverse = reverse;
@@ -699,14 +703,14 @@ define('diffpatch',['exports', 'util'], function(exports, util) {
 
 define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
   var noop = function(){};
-  
+
   var diff = diffpatch.diff;
   var patch = diffpatch.patch;
   var isPOJS = util.isPOJS;
   var getByPath = util.getByPath;
   var wrap = util.wrap;
   var isChild = util.isChild;
-    
+
   function STM(addressOrWs) {
     if (typeof addressOrWs === "string")
       this.ws = new WebSocket(addressOrWs);
@@ -714,25 +718,30 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       this.ws = addressOrWs;
     else
       throw new Error("invalid websocket config");
-      
+
     var ws = this.ws;
-    
+
     var actions = {};
     var store = null;
     var observers = {};
-    
+
     var attemptID = 0;
     var syncInterval = null;
-    
+
     var pending = [];
     var queue = [];
-    
+
     var initialized = false;
     var initFunction = function(){};
     var waitingForReturn = false;
-    
+
+    this.lib = {
+      'diffpatch': diffpatch,
+      'util': util
+    };
+
     var that = this;
- 
+
     ws.addEventListener('message', function(event) {
       var envelope = JSON.parse(event.data);
       switch(envelope.channel) {
@@ -740,19 +749,19 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
           for (var i = 0; i < pending.length; i++)
             if (envelope.message.successes.indexOf(pending[i].id) > -1)
               pending.splice(i--, 1);
-            
+
           if (pending.length === 0) {
             waitingForReturn = false;
             sync();
             break;
           }
 
-          var cur, saved = [];          
+          var cur, saved = [];
           while (typeof (cur = queue.pop()) !== 'undefined' || typeof (cur = pending.pop()) !== 'undefined') {
             saved.unshift(cur);
             applyQuick(actions[cur.channel].onRevert, getByPath(store, cur.path), cur.params);
           }
-   
+
           for (var p in envelope.message.fixes) {
             if (!envelope.message.fixes.hasOwnProperty(p))
               continue;
@@ -764,16 +773,16 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
               root[components[components.length - 1]] = envelope.message.fixes[p]
             }
           }
-           
+
           prepareRecursive(store);
-                      
+
           for (var i = 0; i < saved.length; i++) {
             if (typeof saved[i].params === 'undefined')
               saved[i].params = [];
             saved[i].params.unshift(saved[i].channel);
             applyQuick(sendAction, {__stm: that, __path: saved[i].path}, saved[i].params);
           }
-            
+
           waitingForReturn = false;
           sync();
           break;
@@ -788,16 +797,14 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
           break;
       }
     });
-    
+
     // public functions
     var action = this.action = function(name) {
       if (!(typeof name === "string"))
         throw new Error("invalid action name");
-      if (name in actions)
-        throw new Error("duplicate action");
-        
+
       var a = actions[name] = {'onReceive': noop, 'onRevert': noop};
-      
+
       return {
         onReceive: function(callback) {
           if (!(typeof callback === "function"))
@@ -813,7 +820,7 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
         }
       };
     };
-    
+
     var init = this.init = function(callback) {
       if (!(typeof callback === "function"))
         throw new Error("invalid callback");
@@ -821,8 +828,8 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       if (initialized)
         initFunction(store);
     };
-    
-    var sync = this.sync = function(interval) {    
+
+    var sync = this.sync = function(interval) {
       if (typeof interval === 'undefined' && syncInterval === null)
         syncOp()
       else if (typeof interval === null && syncInterval !== null) {
@@ -832,30 +839,30 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       else if (typeof interval !== 'undefined') {
         if (syncInterval !== null)
           clearInterval(syncInterval);
-        
+
         syncInterval = setInterval(syncOp, interval);
       }
     };
-    
+
     function addObserver(callback, depth) {
       if (!('__stm' in this))
         throw new Error('addObserver called on unprepared object');
       if (!(typeof callback === "function"))
         throw new Error("invalid callback");
       var path = this.__path;
-      
+
       if (!initialized)
         throw new Error("observer added before initialization");
-        
+
       if (typeof observers[path] === 'undefined')
         observers[path] = [];
-        
+
       observers[path].push({'callback': callback, 'depth': depth});
       send('subscribe', {'path': path, 'depth': depth});
 
       callback(getByPath(store, path), null);
     }
-    
+
     function sendAction(channel) {
       if (!('__stm' in this))
         throw new Error('sendAction called on unprepared object');
@@ -864,34 +871,51 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       var params = [];
       for (var i = 1; i < arguments.length; i++)
         params[i - 1] = arguments[i];
-              
+
       if (!initialized)
         throw new Error("action sent added before initialization");
-        
+
       if (typeof channel !== 'string' || !(channel in actions))
         throw new Error("invalid action");
-     
-      var origin = getByPath(store, path); 
+
+      var origin = getByPath(store, path);
       if (origin === null)
         throw new Error("invalid path");
-      
+
       var comparand = JSON.parse(JSON.stringify(origin));
-     
-      if (applyQuick(actions[channel].onReceive, comparand, params) === false)
+
+      var extPath = applyQuick(actions[channel].onReceive, comparand, params);
+      if (extPath === false)
         return;
-        
+
+      if (typeof extPath !== 'undefined') {
+        origin = {'toDiff': getByPath(origin, extPath)};
+        comparand = {'toDiff': getByPath(comparand, extPath)};
+      }
+
       var delta = diff(origin, comparand);
+
 
       if (typeof delta === 'undefined')
         return;
-      
+        
+      if (typeof extPath !== 'undefined') {
+        newDelta = {};
+        var paths = extPath.split('.');
+        newDelta[paths[paths.length - 1]] = delta.toDiff;
+        paths.pop();
+        if (paths.length > 0)
+          path += '.' + paths.join('.');
+        delta = newDelta;
+      }
+
       var attempt = new Attempt({'id': attemptID++, 'path': path, 'channel': channel, 'params': params, 'delta': delta});
       patchAndNotify(attempt);
-      
+
       queue.push(attempt);
       sync();
     }
-    
+
     function syncOp() {
       if (waitingForReturn || queue.length === 0 || !initialized)
         return;
@@ -899,17 +923,16 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       send('attempt', {'attempts': queue});
       applyQuick(pending.push, pending, queue.splice(0, queue.length));
     }
-    
+
     function send(channel, message) {
       ws.send(JSON.stringify({'channel': channel, 'message': message}));
     }
-    
+
     function prepareRecursive(obj, path) {
       if (typeof path === 'undefined')
         path = [];
-        
+
       if (isPOJS(obj)) {
-        var props = Object.keys(obj);
         if (!obj.hasOwnProperty('__path')) {
           Object.defineProperties(obj, {
             '__path': {
@@ -926,45 +949,43 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
             }
           });
         }
-        for (var i = 0; i < props.length; i++) {
-          path.push(props[i]);
-          if (props[i] != '__path' && props[i] != '__stm' && props[i] != 'addObserver' && props[i] != 'sendAction')
-            prepareRecursive(obj[props[i]], path);
-          path.pop();
+        for (var p in obj) {
+          if (p != '__path' && p != '__stm' && p != 'addObserver' && p != 'sendAction') {
+            path.push(p);
+            prepareRecursive(obj[p], path);
+            path.pop();
+          }
         }
       }
-      
+
       return obj;
     }
-  
+
     function patchAndNotify(attempt) {
-      var observerPaths = Object.keys(observers), origin = [];
-      for (var j = 0; j < observerPaths.length; j++)
-        if (getByPath(wrap(attempt.delta, attempt.path), observerPaths[j]) !== null) {
-          var maybeOrigin = getByPath(store, observerPaths[j]);
-          if (isPOJS(maybeOrigin))
-            origin[j] = JSON.parse(JSON.stringify(maybeOrigin));
+      var origin = JSON.parse(JSON.stringify(store));
+      patch(getByPath(store, attempt.path), attempt.delta, true);
+      prepareRecursive(getByPath(store, attempt.path), attempt.path !== '' ? attempt.path.split('.') : undefined);
+
+      for (var path in observers) {
+        if (typeof getByPath(wrap(attempt.delta, attempt.path), path) !== 'undefined' && isPOJS(getByPath(origin, path))) {
+          for (var j = 0; j < observers[path].length; j++) {
+            observers[path][j].callback(getByPath(store, path), getByPath(origin, path));
+          }
         }
-      patch(getByPath(store, attempt.path), attempt.delta);
-      prepareRecursive(getByPath(store, attempt.path), attempt.path !== '' ? attempt.path.split('.') : undefined);      
-      
-      for (var i = 0; i < origin.length; i++)
-        if (typeof origin[i] !== 'undefined')
-          for (var j = 0; j < observers[observerPaths[i]].length; j++)
-            observers[observerPaths[i]][j].callback(getByPath(store, observerPaths[i]), origin[i]);
-    } 
+      }
+    }
   }
-  
+
   function Attempt(params) {
     var props = Object.keys(params);
     for (var i = 0; i < props.length; i++)
       this[props[i]] = params[props[i]];
-  };
-  
+  }
+
   Attempt.prototype.toJSON = function() {
     return {'id': this.id, 'path': this.path, 'delta': this.delta};
   };
-  
+
   function applyQuick(fn, thisArg, params) {
     switch(params.length) {
       case 0: return fn.call(thisArg);
@@ -979,6 +1000,7 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
 
   exports.STM = STM;
 });
+
   stm = require('stm');
   })();
   if (window) {

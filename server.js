@@ -3,53 +3,77 @@ var events = require('events');
 var nodeutil = require('util');
 var diffpatch = require('./src/diffpatch.js'), diff = diffpatch.diff, patch = diffpatch.patch;
 var util = require('./src/util.js'), isPOJS = util.isPOJS, getByPath = util.getByPath, wrap = util.wrap;
+var fs = require('fs'), path = require('path');
 
-module.exports.Server = function(port, inputState, opts) {
+module.exports.Server = function(portOrServer, inputState, opts) {
   if (typeof opts === 'undefined')
     opts = {};
 
-  this.websocketServer = new WebSocket.Server({'port': port});
+  var logPath, writeStream;
+  if (opts.log === true) {
+    this.logFile = Date.now() + '.log';
+    logPath = path.resolve(opts.logDir, this.logFile);
+    writeStream = fs.createWriteStream(logPath);
+
+    var initialPath = path.resolve(opts.logDir, this.logFile + '.initial');
+    fs.writeFileSync(initialPath, JSON.stringify(inputState || {}));
+  }
+
+  function log(data) {
+    if (opts.log)
+      writeStream.write(JSON.stringify({ts: Date.now(), deltas: data}) + "\n");
+  }
+
+  if (parseInt(portOrServer) == parseInt(portOrServer)) {
+    this.websocketServer = new WebSocket.Server({'port': portOrServer});
+  } else {
+    this.websocketServer = new WebSocket.Server({'server': portOrServer});
+  }
+
   this.state = inputState || {};
- 
-  var conns = []; 
+
+  var conns = [];
   var that = this;
-  
+
   this.on('open', function(conn) {
     conn.sendObj('set-state', {'data': this.state});
   });
-  
+
   this.on('subscribe', function(conn, message) {
     conn.subs.push({'path': message.path, 'depth': message.depth});
   });
-  
+
   this.on('attempt', function(conn, message) {
     var fixes = {};
     var successes = message.attempts.filter(function(attempt) {
       if (patch(getByPath(that.state, attempt.path), attempt.delta))
         return true;
-      else
+      else {
         fixes[attempt.path] = true;
+      }
     });
-    
+
     for (var p in fixes)
       fixes[p] = getByPath(that.state, p);
-    
+
     conn.sendObj('attempt-returned', {'id': message.id, 'successes': successes.map(function(success) { return success.id; }), 'fixes': fixes});
-    
+
     conns.forEach(function(otherConn) {
       if (otherConn === conn)
         return;
-      
+
       var deltas = successes.filter(function(success) {
         for (var i = 0; i < otherConn.subs.length; i++) {
           if (getByPath(wrap(success.delta, success.path), otherConn.subs[i].path) !== null)
             return true;
           }
       });
-      
+
       if (deltas.length > 0)
         otherConn.sendObj('update-state', {'deltas': deltas});
     });
+
+    log(successes);
   });
 
   this.websocketServer.on('connection', function(conn) {
@@ -69,7 +93,7 @@ module.exports.Server = function(port, inputState, opts) {
       conns.splice(conns.indexOf(wrapped), 1);
     });
   });
-  
+
   events.EventEmitter.call(this);
 }
 
