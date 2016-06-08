@@ -197,8 +197,8 @@ define(['exports', 'diffpatch', 'util'], function(exports, diffpatch, util) {
 
       if (typeof delta === 'undefined')
         return;
-        
-      if (typeof extPath !== 'undefined') {
+
+      if (typeof extPath === 'string') {
         newDelta = {};
         var paths = extPath.split('.');
         newDelta[paths[paths.length - 1]] = delta.toDiff;
