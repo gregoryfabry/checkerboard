@@ -888,7 +888,7 @@ define('stm',['exports', 'diffpatch', 'util'], function(exports, diffpatch, util
       if (extPath === false)
         return;
 
-      if (typeof extPath !== 'undefined') {
+      if (typeof extPath === 'string') {
         origin = {'toDiff': getByPath(origin, extPath)};
         comparand = {'toDiff': getByPath(comparand, extPath)};
       }
