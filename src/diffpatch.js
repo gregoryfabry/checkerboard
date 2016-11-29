@@ -191,8 +191,21 @@ define(['exports', 'util'], function(exports, util) {
       typeof obj === 'object' &&
       obj !== null;
   }
+  
+  function getByPath(obj, path) {
+    if (path === "")
+      return obj;
+
+    var keys = path.split('.');
+
+    for (var i = 0; i < keys.length && obj; i++)
+        obj = obj[keys[i]];
+
+    return i >= keys.length ? obj : undefined;
+  }
 
   exports.diff = diff;
   exports.patch = patch;
   exports.reverse = reverse;
+  exports.getByPath = getByPath;
 });
