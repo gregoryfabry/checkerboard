@@ -1,3 +1,71 @@
 <!doctype html>
 <html>
+<head>
+<style>
+  html, body, #whiteboard {
+    overflow: hidden;
+    position: absolute;
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+  }
+</style>
+</head>
+<body>
+<canvas id="whiteboard"></canvas>
 <script src="client.js"></script>
+<script>
+  var canvas = document.getElementById("whiteboard")
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  var ctx = canvas.getContext("2d");
+  var stm = cb2.connect("ws://localhost:3000", function() {
+    var nextPath;
+    var lastPoint = {};
+    stm.addObserver(function(store) {
+      nextPath = Object.keys(store.paths || []).length;
+
+      ctx.strokeStyle = "#000000";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 5;
+
+      Object.keys(store.paths || []).sort().forEach(function(p) {
+        var path = store.paths[p];
+
+        for (var i = (lastPoint[p] ? lastPoint[p] : 0); i < Object.keys(path).length - 1; i++) {
+          ctx.beginPath();
+          if (i > 0)
+            ctx.moveTo(path[i - 1].x, path[i - 1].y);
+          else
+            ctx.moveTo(path[i].x - 1, path[i].y);
+
+          ctx.lineTo(path[i].x, path[i].y);
+          ctx.closePath();
+          ctx.stroke();
+        }
+
+        lastPoint[p] = i;
+      });
+    });
+    stm.sync("whiteboard");
+
+    var currentPath;
+    canvas.addEventListener("mousedown", function(e) {
+      currentPath = nextPath;
+      stm.transaction([["paths", nextPath]], function(path) {
+        path[0] = {x: e.clientX, y: e.clientY};
+      });
+    });
+
+    canvas.addEventListener("mousemove", function(e) {
+      if (e.buttons === 0)
+        return;
+
+      stm.transaction([["paths", currentPath]], function(path) {
+        var next = Object.keys(path).length - ("_id" in path ? 1 : 0);
+        path[next] = {x: e.clientX, y: e.clientY};
+      });
+    });
+  });
+</script>
