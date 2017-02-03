@@ -2,7 +2,7 @@
 <html>
 <head>
 <style>
-  html, body, #whiteboard {
+  html, body, canvas {
     overflow: hidden;
     position: absolute;
     height: 100vh;
@@ -14,58 +14,110 @@
 </head>
 <body>
 <canvas id="whiteboard"></canvas>
+<canvas id="curDrawingWhiteboard"></canvas>
 <script src="client.js"></script>
 <script>
-  var canvas = document.getElementById("whiteboard")
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  var ctx = canvas.getContext("2d");
-  var stm = cb2.connect("ws://localhost:3000", function() {
-    var nextPath;
+  var whiteboard = document.getElementById("whiteboard")
+  whiteboard.width = window.innerWidth;
+  whiteboard.height = window.innerHeight;
+  var whiteboardCtx = whiteboard.getContext("2d");
+
+  var curDrawingWhiteboard = document.getElementById("curDrawingWhiteboard")
+  curDrawingWhiteboard.width = window.innerWidth;
+  curDrawingWhiteboard.height = window.innerHeight;
+  var curDrawingWhiteboardCtx = curDrawingWhiteboard.getContext("2d");
+
+  var stm = cb2.connect("ws://172.22.245.134:3000", function() {
     var lastPoint = {};
+    var lastDrawn = {};
+    var drawn = {};
+    var lastId;
+    curDrawingWhiteboardCtx.translate(0.5,0.5);
+    whiteboardCtx.translate(0.5,0.5);
+
     stm.addObserver(function(store) {
-      nextPath = Object.keys(store.paths || []).length;
+      whiteboardCtx.strokeStyle = "#000000";
+      whiteboardCtx.lineJoin = "round";
+      whiteboardCtx.lineCap = "round";
+      whiteboardCtx.lineWidth = 5;
 
-      ctx.strokeStyle = "#000000";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = 5;
+      curDrawingWhiteboardCtx.strokeStyle = "#FF0000";
+      curDrawingWhiteboardCtx.lineJoin = "round";
+      curDrawingWhiteboardCtx.lineCap = "round";
+      curDrawingWhiteboardCtx.lineWidth = 5;
 
-      Object.keys(store.paths || []).sort().forEach(function(p) {
-        var path = store.paths[p];
+      if (store.paths && lastId !== store.paths._id) {
+        whiteboardCtx.clearRect(0, 0, whiteboard.width, whiteboard.height);
+        drawn = {};
+        lastId = store.paths._id;
+      } else if (!store.paths) {
+        return;
+      }
+      
+      whiteboardCtx.clearRect(0, 0, whiteboard.width, whiteboard.height);
+      curDrawingWhiteboardCtx.clearRect(0, 0, whiteboard.width, whiteboard.height);
+      cb2.array.forEach(store.paths, function(path, i) {
+        //if (drawn[i])
+        //  return;
 
-        for (var i = (lastPoint[p] ? lastPoint[p] : 0); i < Object.keys(path).length - 1; i++) {
-          ctx.beginPath();
-          if (i > 0)
-            ctx.moveTo(path[i - 1].x, path[i - 1].y);
-          else
-            ctx.moveTo(path[i].x - 1, path[i].y);
-
-          ctx.lineTo(path[i].x, path[i].y);
-          ctx.closePath();
-          ctx.stroke();
+        if (store.currentlyDrawing && store.currentlyDrawing[i])
+          ctx = curDrawingWhiteboardCtx;
+        else {
+          ctx = whiteboardCtx;
+          drawn[i] = true;
         }
 
-        lastPoint[p] = i;
+      // move to the first point
+      // http://stackoverflow.com/questions/7054272/how-to-draw-smooth-curve-through-n-points-using-javascript-html5-canvas
+      if (!path[0])
+        return;
+
+      ctx.beginPath();
+      ctx.moveTo(path[0].x, path[0].y);
+
+      for (j = 1; j < cb2.array.length(path) - 2; j += 2 ) {
+        var xc = (path[j].x + path[j + 2].x) / 2;
+        var yc = (path[j].y + path[j + 2].y) / 2;
+        ctx.quadraticCurveTo(path[j].x, path[j].y, xc, yc);
+      }
+
+      ctx.stroke();
       });
     });
     stm.sync("whiteboard");
 
     var currentPath;
-    canvas.addEventListener("mousedown", function(e) {
-      currentPath = nextPath;
-      stm.transaction([["paths", nextPath]], function(path) {
-        path[0] = {x: e.clientX, y: e.clientY};
-      });
+    curDrawingWhiteboard.addEventListener("mousedown", function(e) {
+      if (e.button === 0) {
+        stm.transaction([["paths", "+"], ["currentlyDrawing"]], function(path, currentlyDrawing) {
+          path[0] = path[2] = {x: e.clientX, y: e.clientY};
+          path[1] = path[3] = {x: e.clientX - 1, y: e.clientY};
+          currentPath = this.props[0][this.props[0].length -1 ];
+          currentlyDrawing[currentPath] = true;
+        });
+      } else {
+        stm.transaction([["paths"]], function(paths) {
+          for (var p in paths) {
+            if (p !== "_id")
+              paths[p] = {};
+          }
+        })
+      }
     });
 
-    canvas.addEventListener("mousemove", function(e) {
-      if (e.buttons === 0)
+    curDrawingWhiteboard.addEventListener("mousemove", function(e) {
+      if (e.buttons !== 1)
         return;
 
       stm.transaction([["paths", currentPath]], function(path) {
-        var next = Object.keys(path).length - ("_id" in path ? 1 : 0);
-        path[next] = {x: e.clientX, y: e.clientY};
+        cb2.array.push(path, {x: e.clientX, y: e.clientY});
       });
+    });
+
+    curDrawingWhiteboard.addEventListener("mouseup", function(e) {
+      stm.transaction([["currentlyDrawing"]], function(currentlyDrawing) {
+        currentlyDrawing[currentPath] = false;
+      })
     });
   });
 </script>

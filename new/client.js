@@ -59,7 +59,9 @@
       return getByPath(this.store, path);
     }).bind(this));
 
-    action.apply(null, dependencies);
+    action.apply({
+      props: paths
+    }, dependencies);
 
     var versions = {};
     var updates = {};
@@ -84,16 +86,22 @@
     }).bind(this));
   };
 
-  function getByPath(obj, path) {
-    if (path.length === 0)
+  function getByPath(obj, path, i) {
+    if (typeof i === "undefined")
+      i = 0;
+
+    if (path.length - i === 0 || path[i] === "")
       return obj;
 
-    if (!(path[0] in obj))
-      obj[path[0]] = {};
+    if (path[i] === "+") {
+      path[i] = arrayHelpers.push(obj, {}) - 1;
+    } else if (!(path[i] in obj)) {
+      obj[path[i]] = {};
+    }
 
-    var next = obj[path[0]];
+    var next = obj[path[i]];
 
-    return getByPath(next, path.slice(1));
+    return getByPath(next, path, i + 1);
   }
 
   // Sending and receiving logic.
@@ -166,6 +174,57 @@
         delete this.transactionQueue[message.seq];
         this.transaction(transaction.paths, transaction.action, message.seq);
         break;
+    }
+  };
+
+  var arrayHelpers;
+  arrayHelpers = globals.cb2.array = {
+    length: function(arr) {
+      return Object.keys(arr).length  -
+        ("_id" in arr ? 1 : 0);
+    },
+    forEach: function(arr, callback, thisArg) {
+      var length = arrayHelpers.length(arr);
+      for (var i = 0; i < length; i++)
+        callback.call(thisArg, arr[i], i, arr);
+    },
+    map: function(arr, callback, thisArg) {
+      var length = arrayHelpers.length(arr);
+      var toReturn = {};
+
+      arrayHelpers.forEach(arr, function(item, i) {
+        toReturn[i] = callback.call(thisArg, item, i, arr);
+      });
+
+      return toReturn;
+    },
+    push: function(arr) {
+      var savedLength = arr.length;
+      var hasLength = "length" in arr;
+      arr.length = arrayHelpers.length(arr);
+
+      var toReturn = Array.prototype.push.apply(arr, Array.prototype.slice.call(arguments, 1));
+
+      if (hasLength)
+        arr.length = savedLength;
+      else
+        delete arr.length;
+
+      return toReturn;
+    },
+    pop: function(arr) {
+      var savedLength = arr.length;
+      var hasLength = "length" in arr;
+      arr.length = arrayHelpers.length(arr);
+
+      var toReturn = Array.prototype.pop.apply(arr);
+
+      if (hasLength)
+        arr.length = savedLength;
+      else
+        delete arr.length;
+
+      return toReturn;
     }
   };
 
