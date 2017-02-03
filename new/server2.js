@@ -4,6 +4,7 @@ var inherits = require('util').inherits;
 var fs = require("fs");
 var path = require("path");
 var async = require("async");
+var jsonpatch = require("fast-json-patch");
 
 module.exports.server = function(port, dir) {
   return new Server(port, dir);
@@ -109,8 +110,11 @@ Server.prototype.processReceive = function(connection, envelope) {
         }
       }
 
+      var patches = {};
+
       for (p in message.updates) {
         curPath = p.split(".");
+        patches[p] = jsonpatch.compare(getByPath(store, curPath), message.updates[p]);
         getByPath(store, curPath.slice(0, -1))[curPath.pop()] = message.updates[p];
       }
 
@@ -124,7 +128,7 @@ Server.prototype.processReceive = function(connection, envelope) {
         });
       });
 
-      this.streams[message.storeId].write(JSON.stringify({time: + new Date(), updates:  message.updates}) + "\n");
+      this.streams[message.storeId].write(JSON.stringify({time: + new Date(), patches:  patches}) + "\n");
 
       connection.send("transaction-success", {
         seq: message.seq

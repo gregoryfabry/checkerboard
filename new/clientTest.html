@@ -10,11 +10,32 @@
     margin: 0;
     padding: 0;
   }
+
+  div {
+    position: absolute;
+    width: 90vw;
+    left: 5vw;
+    bottom: 25px;
+    padding: 0;
+    margin: 0;
+  }
+
+  #playbackSlider {
+    width: 100%;
+  }
+
+  .live {
+    border: 1px dashed green;
+    border-radius: 5px;
+  }
 </style>
 </head>
 <body>
 <canvas id="whiteboard"></canvas>
 <canvas id="curDrawingWhiteboard"></canvas>
+<div class="live">
+<input type="range" step="1" min="0" id="playbackSlider" class="live" />
+</div>
 <script src="client.js"></script>
 <script>
   var whiteboard = document.getElementById("whiteboard")
@@ -27,11 +48,17 @@
   curDrawingWhiteboard.height = window.innerHeight;
   var curDrawingWhiteboardCtx = curDrawingWhiteboard.getContext("2d");
 
+  var slider = document.getElementById("playbackSlider");
+  slider.max = 1;
+  slider.value = 1;
+  slider.disabled = true;
+
   var stm = cb2.connect("ws://172.22.245.134:3000", function() {
     var lastPoint = {};
     var lastDrawn = {};
     var drawn = {};
     var lastId;
+
     curDrawingWhiteboardCtx.translate(0.5,0.5);
     whiteboardCtx.translate(0.5,0.5);
 
@@ -46,6 +73,9 @@
       curDrawingWhiteboardCtx.lineCap = "round";
       curDrawingWhiteboardCtx.lineWidth = 5;
 
+      whiteboardCtx.clearRect(0, 0, whiteboard.width, whiteboard.height);
+      curDrawingWhiteboardCtx.clearRect(0, 0, whiteboard.width, whiteboard.height);
+
       if (store.paths && lastId !== store.paths._id) {
         whiteboardCtx.clearRect(0, 0, whiteboard.width, whiteboard.height);
         drawn = {};
@@ -53,9 +83,7 @@
       } else if (!store.paths) {
         return;
       }
-      
-      whiteboardCtx.clearRect(0, 0, whiteboard.width, whiteboard.height);
-      curDrawingWhiteboardCtx.clearRect(0, 0, whiteboard.width, whiteboard.height);
+
       cb2.array.forEach(store.paths, function(path, i) {
         //if (drawn[i])
         //  return;
@@ -86,6 +114,32 @@
     });
     stm.sync("whiteboard");
 
+    slider.disabled = false;
+    stm.initializePlayback(function() {
+      slider.max = stm.log.length;
+      slider.value = stm.log.length;
+    });
+
+    var waitingOnLog = false;
+    slider.addEventListener("input", function() {
+      if (slider.value === slider.max) {
+        stm.enablePlayback(false);
+        document.getElementsByTagName("div")[0].classList.add("live");
+      } else if (!waitingOnLog && stm.playback === false) {
+        waitingOnLog = true;
+        document.getElementsByTagName("div")[0].classList.remove("live");
+        stm.initializePlayback(function() {
+          waitingOnLog = false;
+          slider.max = stm.log.length;
+          slider.value = stm.log.length - 1;
+          stm.enablePlayback(true);
+          stm.goToPlaybackPointer(slider.value);
+        });
+      } else if (!waitingOnLog) {
+        stm.goToPlaybackPointer(slider.value);
+      }
+    });
+
     var currentPath;
     curDrawingWhiteboard.addEventListener("mousedown", function(e) {
       if (e.button === 0) {
@@ -106,17 +160,19 @@
     });
 
     curDrawingWhiteboard.addEventListener("mousemove", function(e) {
-      if (e.buttons !== 1)
+      if (e.buttons !== 1 || typeof currentPath === "undefined")
         return;
 
-      stm.transaction([["paths", currentPath]], function(path) {
-        cb2.array.push(path, {x: e.clientX, y: e.clientY});
+      stm.transaction([["paths", currentPath, "+"]], function(point) {
+        point.x = e.clientX;
+        point.y = e.clientY;
       });
     });
 
     curDrawingWhiteboard.addEventListener("mouseup", function(e) {
       stm.transaction([["currentlyDrawing"]], function(currentlyDrawing) {
         currentlyDrawing[currentPath] = false;
+        currentPath = void 0;
       })
     });
   });

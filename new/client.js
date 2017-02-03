@@ -23,6 +23,11 @@
     this.store = {};
     this.observers = [];
 
+    this.playbackStore = null;
+    this.log = null;
+
+    this.playback = false;
+
     this.ws = new WebSocket(ws);
     this.ws.addEventListener("message", this.receive.bind(this));
     this.ws.addEventListener("open", callback.bind(this));
@@ -30,6 +35,65 @@
 
   Connection.defaults = {
     timeout: 1000
+  };
+
+  function getLog(connection, callback) {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (xhttp.readyState == 4) {
+        connection.log = xhttp.responseText.split("\n").filter(function(line) {
+          return line && line.length > 0;
+        }).map(function(line) {
+          return JSON.parse(line);
+        });
+        callback();
+      }
+    };
+    xhttp.open("GET", "stores/" + connection.storeId + "?" + (+ new Date()), true);
+    xhttp.send();
+  }
+
+  Connection.prototype.initializePlayback = function(callback) {
+    getLog(this, (function() {
+      this.playbackStore = {};
+      this.playbackPointer = 0;
+
+      callback();
+    }).bind(this));
+  };
+
+  Connection.prototype.enablePlayback = function(enablePlayback) {
+    if (enablePlayback) {
+      this.playback = true;
+      this.observers.forEach((function(observer) {
+        observer(this.playbackStore);
+      }).bind(this));
+    } else {
+      this.playback = false;
+      this.observers.forEach((function(observer) {
+        observer(this.store);
+      }).bind(this));
+    }
+  };
+
+  Connection.prototype.goToPlaybackPointer = function(newPointer) {
+    if (this.playbackPointer > newPointer) {
+      this.playbackPointer = 0;
+      this.playbackStore = {};
+    }
+
+    while (this.playbackPointer <= newPointer && this.playbackPointer < this.log.length) {
+      var line = this.log[this.playbackPointer++];
+      var p, path;
+      for (p in line.updates) {
+        path = p.split(".");
+        getByPath(this.playbackStore, path.slice(0, -1))[path.pop()] = JSON.parse(JSON.stringify(line.updates[p]));
+      }
+    }
+
+    this.observers.forEach((function(observer) {
+      observer(this.playbackStore);
+    }).bind(this));
   };
 
   Connection.prototype.sync = function(id) {
@@ -46,6 +110,9 @@
   };
 
   Connection.prototype.transaction = function(paths, action, seq) {
+    if (this.playback)
+      return;
+
     seq = (typeof seq !== "undefined" ? seq : this.transactionSeq++);
 
     paths = paths.map((function(path) {
@@ -147,6 +214,9 @@
 
         this.store = message.store;
 
+        if (this.playback)
+          return;
+
         this.observers.forEach((function(observer) {
           observer(this.store);
         }).bind(this));
@@ -160,6 +230,9 @@
           path = p.split(".");
           getByPath(this.store, path.slice(0, -1))[path.pop()] = message.updates[p];
         }
+
+        if (this.playback)
+          return;
 
         this.observers.forEach((function(observer) {
           observer(this.store);
